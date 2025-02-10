@@ -1,0 +1,15 @@
+[package]
+name = "sniff-common"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = []
+user = ["aya"]
+
+[dependencies]
+aya = { workspace = true, optional = true }
+network-types = {version="0.0.7"}
+
+[lib]
+path = "src/lib.rs"
