@@ -1,10 +1,10 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use ipnetwork::IpNetwork;
 
 #[derive(Debug)]
 struct Node<N> {
-    metadata: N,
+    metadata: Arc<N>,
 
     is_last: bool,
     left: Option<Box<Node<N>>>,
@@ -14,11 +14,17 @@ struct Node<N> {
 impl<N: Default> Default for Node<N> {
     fn default() -> Self {
         Self {
-            metadata: N::default(),
+            metadata: Arc::new(N::default()),
             is_last: false,
             left: None,
             right: None,
         }
+    }
+}
+
+impl<N> Node<N> {
+    pub fn empty(&self) -> bool {
+        self.left.is_none() && self.right.is_none()
     }
 }
 
@@ -29,7 +35,7 @@ pub struct PrefixTree<N> {
 
 impl<N> PrefixTree<N>
 where
-    N: Default + Copy + Clone + Debug,
+    N: Default + Clone + Debug,
 {
     const BIT_0: u8 = 48;
     const BIT_1: u8 = 49;
@@ -38,6 +44,10 @@ where
         PrefixTree {
             root: Some(Box::new(Node::default())),
         }
+    }
+
+    pub fn empty(&self) -> bool {
+        self.root.is_none() || self.root.as_ref().unwrap().empty()
     }
 
     pub fn insert(&mut self, addr: ipnetwork::Ipv4Network, metadata: N) {
@@ -64,18 +74,18 @@ where
             }
 
             if i == bin.len() - 1 {
-                (tmp.is_last, tmp.metadata) = (true, metadata)
+                (tmp.is_last, tmp.metadata) = (true, Arc::new(metadata.clone()))
             }
         }
     }
 
-    pub fn search<T>(&self, addr: T) -> (bool, N)
+    pub fn search<T>(&self, addr: T) -> (bool, Arc<N>)
     where
         T: Into<IpNetwork>,
     {
         let bin = ipaddr_to_binary(addr);
         if self.root.is_none() {
-            return (false, N::default());
+            return (false, Arc::new(N::default()));
         }
 
         let mut tmp = self.root.as_ref();
@@ -99,9 +109,9 @@ where
         }
 
         if let Some(node) = assume_last {
-            (node.is_last, node.metadata)
+            (node.is_last, node.metadata.clone())
         } else {
-            (false, N::default())
+            (false, Arc::new(N::default()))
         }
     }
 }
@@ -131,7 +141,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use std::{net::IpAddr, str::FromStr};
+    use std::{net::IpAddr, str::FromStr, sync::Arc};
 
     use ipnetwork::Ipv4Network;
 
@@ -147,19 +157,19 @@ mod test {
 
         assert_eq!(
             trie.search(IpAddr::from_str("1.0.134.168").unwrap()),
-            (true, 101)
+            (true, Arc::new(101))
         );
         assert_eq!(
             trie.search(IpAddr::from_str("1.1.1.254").unwrap()),
-            (true, 102)
+            (true, Arc::new(102))
         );
         assert_eq!(
             trie.search(IpAddr::from_str("2.0.1.168").unwrap()),
-            (true, 103)
+            (true, Arc::new(103))
         );
         assert_eq!(
             trie.search(IpAddr::from_str("2.0.0.168").unwrap()),
-            (true, 104)
+            (true, Arc::new(104))
         );
     }
 }

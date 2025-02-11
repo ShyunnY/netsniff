@@ -23,3 +23,10 @@ impl RawPacket {
         Self { ip_hdr, proto_hdr }
     }
 }
+
+#[derive(Debug)]
+pub enum Flow {
+    Ingress,
+    Egress,
+    All,
+}

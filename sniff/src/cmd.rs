@@ -26,11 +26,11 @@ pub struct Cmd {
 
     /// One or more ifaces to attach. (e.g. --iface lo,eth0...)
     #[arg(short = 'i', value_name = "iface,", global = true)]
-    pub iface: Vec<String>,
+    pub ifaces: Vec<String>,
 
     /// Detect traffic matching the given cidr. If not set, all traffic will be matched.
     #[arg(short = 'c', value_name = "cidr,", global = true)]
-    pub cidr: Vec<String>,
+    pub cidrs: Vec<String>,
 
     #[command(subcommand)]
     pub sub_cmd: SubCmd,
