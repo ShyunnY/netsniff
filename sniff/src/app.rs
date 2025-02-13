@@ -6,7 +6,7 @@ use network_types::ip::IpProto;
 use sniff_common::Flow;
 use tokio::sync::mpsc;
 
-use crate::{cidr::PrefixTree, ebpf, network::FlowPacket, uname};
+use crate::{cidr::PrefixTree, ebpf, network::FlowPacket, util};
 
 pub struct Application<N> {
     pub ifaces: Vec<String>,
@@ -34,7 +34,7 @@ where
         info!(
             "start sniff traffic process, flow: {:?}, kernal: {:?}",
             flow,
-            uname().unwrap().release
+            util::uname().unwrap().release,
         );
 
         for iface in self.ifaces.iter() {
