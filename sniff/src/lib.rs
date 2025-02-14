@@ -7,9 +7,10 @@ pub mod network;
 
 pub mod util{
     use std::{
-        ffi::{c_char, CStr},
-        io,
+        collections::HashSet, ffi::{c_char, CStr}, io
     };
+
+    use anyhow::{Result,anyhow};
 
     pub fn uname() -> io::Result<SysInfo> {
         let mut buf = unsafe { std::mem::zeroed() };
@@ -41,5 +42,35 @@ pub mod util{
     #[inline]
     fn cstr(buf: &[c_char]) -> &CStr {
         unsafe { CStr::from_ptr(buf.as_ptr()) }
+    }
+
+    pub fn lookup_interface(iface_set: HashSet<&str>) -> Result<()> {
+        let mut result = HashSet::new();
+        unsafe {
+            let mut iface_addr: *mut libc::ifaddrs = std::ptr::null_mut();
+            if libc::getifaddrs(&mut iface_addr) == 0 {
+                let mut iface = iface_addr;
+                while !iface.is_null() {
+                    let ifa_name = (*iface).ifa_name;
+                    let ifa_addr = (*iface).ifa_addr;
+
+                    if !ifa_name.is_null() && !ifa_addr.is_null() {
+                        let c_interface = CStr::from_ptr(ifa_name);
+                        let interface = c_interface.to_str().unwrap();
+                        result.insert(interface);
+                    }
+                    iface = (*iface).ifa_next;
+                }
+            }
+        }
+        iface_set.iter().try_for_each(|&i| match result.get(i) {
+            Some(_) => Ok(()),
+            None => Err(anyhow!(
+                "'{}' network interface not exist in current machine",
+                i
+            )),
+        })?;
+
+        Ok(())
     }
 }

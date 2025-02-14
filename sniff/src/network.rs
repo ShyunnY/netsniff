@@ -2,6 +2,7 @@ use std::{fmt::Display, net::Ipv4Addr};
 
 use chrono::Local;
 use network_types::ip::IpProto;
+use serde::Deserialize;
 use sniff_common::{Flow, ProtoHdr, RawPacket};
 
 #[derive(Debug)]
@@ -70,5 +71,26 @@ impl Display for FlowPacket {
             format!("{:?}", self.pkt.proto),
             self.pkt.length,
         )
+    }
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub enum Protol {
+    #[serde(alias = "all")]
+    #[default]
+    ALL,
+    #[serde(alias = "tcp")]
+    TCP,
+    #[serde(alias = "udp")]
+    UDP,
+}
+
+impl From<i32> for Protol {
+    fn from(val: i32) -> Self {
+        match val {
+            1 => Protol::TCP,
+            2 => Protol::UDP,
+            _ => Protol::ALL,
+        }
     }
 }

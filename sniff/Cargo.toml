@@ -18,6 +18,8 @@ ipnetwork = { version = "0.21.1" }
 chrono = { version = "0.4.39" }
 colored = { version = "3.0.0" }
 network-types = { version = "0.0.7" }
+serde = { version = "1.0.217", features = ["derive"] }
+serde_yaml = "0.9.34"
 
 [build-dependencies]
 anyhow = { workspace = true }
