@@ -1,6 +1,6 @@
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, net::Ipv4Addr, sync::Arc};
 
-use ipnetwork::IpNetwork;
+use ipnetwork::{IpNetwork, Ipv4Network};
 
 #[derive(Debug)]
 struct Node<N> {
@@ -114,8 +114,36 @@ where
             (false, Arc::new(N::default()))
         }
     }
+
+    /// Used to report the cidr items of PrefixTree mounts
+    pub fn summary(&self) {
+        if let Some(root) = self.root.as_deref() {
+            let mut path = Vec::new();
+            self.dfs(root, &mut path);
+        }
+    }
+
+    fn dfs(&self, node: &Node<N>, path: &mut Vec<u8>) {
+        if node.is_last {
+            // todo: generic N requires 'Display' trait bound?
+            println!("{}", binary_to_cidr(&path).to_string());
+        }
+
+        if let Some(left) = node.left.as_ref() {
+            path.push(Self::BIT_0);
+            self.dfs(left, path);
+            path.pop();
+        }
+
+        if let Some(right) = node.right.as_ref() {
+            path.push(Self::BIT_1);
+            self.dfs(right, path);
+            path.pop();
+        }
+    }
 }
 
+// Convert a cidr address to a binary slice
 #[inline]
 fn ipaddr_to_binary<T>(cidr: T) -> Vec<u8>
 where
@@ -137,6 +165,38 @@ where
     };
 
     sub_cidr.into_bytes()
+}
+
+// Convert a binary slice to a cidr address
+#[inline]
+fn binary_to_cidr(bin: &[u8]) -> Ipv4Network {
+    let bits = bin.len();
+    let mask = bits as u8; // length represents the mask
+
+    let mut cidr_vec: Vec<u8> = Vec::with_capacity(32);
+    for i in 0..32 {
+        if i >= bits {
+            // when the cidr address segment is less than 32 bits,
+            // we fill it with zeros.
+            cidr_vec.push(48);
+        } else {
+            cidr_vec.push(bin[i]);
+        }
+    }
+
+    // convert the four ranges of the IP address into decimal
+    let mut cidr = [0u8; 5];
+    for interval in 0..4 {
+        let mut decimal = 0;
+        for i in 0..8 {
+            let index = 8 - i - 1;
+            decimal += (cidr_vec[interval * 8 + i] & 0xf) << index;
+        }
+        cidr[interval] = decimal as u8;
+    }
+    cidr[4] = mask;
+
+    Ipv4Network::new(Ipv4Addr::new(cidr[0], cidr[1], cidr[2], cidr[3]), cidr[4]).unwrap()
 }
 
 #[cfg(test)]
