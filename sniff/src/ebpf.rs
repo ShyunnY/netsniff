@@ -12,9 +12,9 @@ use tokio::{
     sync::mpsc,
 };
 
-use crate::network::{FlowPacket, Packet};
+use crate::network::{NetworkPacket, Packet};
 
-pub async fn load_ingress_sched_cls(iface: String, proto: i32, tx: mpsc::Sender<FlowPacket>) {
+pub async fn load_ingress_sched_cls(iface: String, proto: i32, tx: mpsc::Sender<NetworkPacket>) {
     let ret = set_rlimit();
     if ret != 0 {
         error!("remove limit on locked memory failed, ret is: {}", ret);
@@ -85,7 +85,8 @@ pub async fn load_ingress_sched_cls(iface: String, proto: i32, tx: mpsc::Sender<
             let raw_pkt: [u8; RawPacket::LEN] = raw_pkt.to_owned().try_into().unwrap();
             let packet: Packet = raw_pkt.into();
 
-            tx.send(FlowPacket {
+            tx.send(NetworkPacket {
+                iface: iface.to_owned(),
                 flow: Flow::Ingress,
                 pkt: packet,
             })
@@ -96,7 +97,7 @@ pub async fn load_ingress_sched_cls(iface: String, proto: i32, tx: mpsc::Sender<
     }
 }
 
-pub async fn load_egress_sched_cls(iface: String, proto: i32, tx: mpsc::Sender<FlowPacket>) {
+pub async fn load_egress_sched_cls(iface: String, proto: i32, tx: mpsc::Sender<NetworkPacket>) {
     let ret = set_rlimit();
     if ret != 0 {
         error!("remove limit on locked memory failed, ret is: {}", ret);
@@ -166,7 +167,8 @@ pub async fn load_egress_sched_cls(iface: String, proto: i32, tx: mpsc::Sender<F
             let raw_pkt: [u8; RawPacket::LEN] = raw_pkt.to_owned().try_into().unwrap();
             let packet: Packet = raw_pkt.into();
 
-            tx.send(FlowPacket {
+            tx.send(NetworkPacket {
+                iface: iface.to_owned(),
                 flow: Flow::Egress,
                 pkt: packet,
             })

@@ -26,7 +26,17 @@ impl RawPacket {
 
 #[derive(Debug)]
 pub enum Flow {
+    All,
     Ingress,
     Egress,
-    All,
+}
+
+impl From<i32> for Flow {
+    fn from(value: i32) -> Self {
+        match value {
+            1 => Flow::Ingress,
+            2 => Flow::Egress,
+            _ => Flow::All,
+        }
+    }
 }

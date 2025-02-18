@@ -1,19 +1,35 @@
-use std::{collections::{HashMap, HashSet}, io, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    fs::File,
+    io,
+    path::Path,
+    str::FromStr,
+};
 
 use anyhow::{anyhow, Result};
 use serde::Deserialize;
+use sniff_common::Flow;
 
 use crate::{network, util};
 
 #[derive(Debug, Deserialize)]
-struct Traffic {
+pub struct Traffic {
     #[serde(rename(deserialize = "trafficConfig"))]
     pub traffic_config: Option<Vec<ConfigItem>>,
 }
 
 impl Traffic {
+    pub fn load_config_path<P>(path: P) -> Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        Self::load_config(File::options().read(true).open(path.as_ref())?)
+    }
+
     pub fn load_config<R>(reader: R) -> Result<Self>
-    where R: io::Read{
+    where
+        R: io::Read,
+    {
         let traffic: Self = serde_yaml::from_reader(reader)?;
         traffic.check()?;
 
@@ -27,7 +43,7 @@ impl Traffic {
         }
     }
 
-    pub fn check_config<'a>(&'a self) -> Result<()> {
+    fn check_config<'a>(&'a self) -> Result<()> {
         let config = self.traffic_config.as_ref().unwrap();
         let mut lookup_iface: HashSet<&'a str> = HashSet::new();
 
@@ -57,9 +73,7 @@ impl Traffic {
                                 ));
                             }
                         }
-                        Err(e ) => {
-                            return Err(anyhow!("failed to parse cidr='{}' by {}", cidr, e))
-                        }
+                        Err(e) => return Err(anyhow!("failed to parse cidr='{}' by {}", cidr, e)),
                     }
                 }
             }
@@ -73,25 +87,39 @@ impl Traffic {
 type OptionVec<T> = Option<Vec<T>>;
 
 #[derive(Debug, Deserialize)]
-struct ConfigItem {
-    name: String,
+pub struct ConfigItem {
+    pub name: String,
     #[serde(default)]
-    protocol: network::Protol,
-    ports: OptionVec<u16>,
-    cidrs: OptionVec<String>,
-    in_iface: OptionVec<String>,
-    out_iface: OptionVec<String>,
-    label_values: Option<HashMap<String,String>>
+    pub protocol: network::Protol,
+    pub ports: OptionVec<u16>,
+    pub cidrs: OptionVec<String>,
+    pub in_iface: OptionVec<String>,
+    pub out_iface: OptionVec<String>,
+    pub label_values: Option<HashMap<String, String>>,
+}
+
+impl ConfigItem {
+    pub fn bind_flow(&self) -> Flow {
+        if self.in_iface.is_some() && self.out_iface.is_some() {
+            Flow::All
+        } else if self.in_iface.is_some() {
+            Flow::Ingress
+        } else if self.out_iface.is_some() {
+            Flow::Egress
+        } else {
+            Flow::All
+        }
+    }
 }
 
 #[cfg(test)]
-mod test{
+mod test {
     use std::io::Cursor;
 
     use super::Traffic;
 
     #[test]
-    fn test_load_config(){
+    fn test_load_config() {
         let config_str = r#"
 trafficConfig:
   - name: first
@@ -110,9 +138,9 @@ trafficConfig:
       hello: world        
 "#;
 
-    let reader = Cursor::new(config_str);
-    let result = Traffic::load_config(reader);
+        let reader = Cursor::new(config_str);
+        let result = Traffic::load_config(reader);
 
-    assert!(result.is_ok())
+        assert!(result.is_ok())
     }
 }

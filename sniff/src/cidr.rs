@@ -126,7 +126,7 @@ where
     fn dfs(&self, node: &Node<N>, path: &mut Vec<u8>) {
         if node.is_last {
             // todo: generic N requires 'Display' trait bound?
-            println!("{}", binary_to_cidr(&path).to_string());
+            println!("{} => {:?}", binary_to_cidr(&path).to_string(), node.metadata);
         }
 
         if let Some(left) = node.left.as_ref() {

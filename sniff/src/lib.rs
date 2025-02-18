@@ -4,6 +4,7 @@ pub mod cidr;
 pub mod cmd;
 pub mod ebpf;
 pub mod network;
+pub mod filter;
 
 pub mod util{
     use std::{

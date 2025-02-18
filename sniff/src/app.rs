@@ -1,4 +1,4 @@
-use std::{fmt::Debug, net::IpAddr};
+use std::{net::IpAddr, sync::Arc};
 
 use colored::Colorize;
 use log::info;
@@ -6,27 +6,30 @@ use network_types::ip::IpProto;
 use sniff_common::Flow;
 use tokio::sync::mpsc;
 
-use crate::{cidr::PrefixTree, ebpf, network::FlowPacket, util};
+use crate::{cidr::PrefixTree, ebpf, filter::Filter, network::NetworkPacket, util};
 
-pub struct Application<N> {
+pub struct Application {
     pub ifaces: Vec<String>,
-    pub trie: PrefixTree<N>,
+    pub trie: PrefixTree<Arc<Box<Filter>>>,
 
-    pub rx: mpsc::Receiver<FlowPacket>,
-    pub tx: mpsc::Sender<FlowPacket>,
+    pub empty_filter: Option<Vec<Arc<Box<Filter>>>>,
+    pub rx: mpsc::Receiver<NetworkPacket>,
+    pub tx: mpsc::Sender<NetworkPacket>,
 }
 
-impl<N> Application<N>
-where
-    N: Default + Clone + Debug,
-{
-    pub fn new(ifaces: Vec<String>, trie: PrefixTree<N>) -> Self {
+impl Application {
+    pub fn new(
+        ifaces: Vec<String>,
+        trie: PrefixTree<Arc<Box<Filter>>>,
+        empty_filter: Option<Vec<Arc<Box<Filter>>>>,
+    ) -> Self {
         let (tx, rx) = mpsc::channel(4096 * 4096);
         Self {
             ifaces,
             trie,
             rx,
             tx,
+            empty_filter,
         }
     }
 
@@ -67,26 +70,46 @@ where
         }
 
         loop {
-            if let Some(flow_pkt) = self.rx.recv().await {
-                let addr = match flow_pkt.flow {
-                    Flow::Ingress => flow_pkt.pkt.src_ip,
-                    Flow::Egress => flow_pkt.pkt.dst_ip,
+            if let Some(net_pkt) = self.rx.recv().await {
+                let addr = match net_pkt.flow {
+                    Flow::Ingress => net_pkt.pkt.src_ip,
+                    Flow::Egress => net_pkt.pkt.dst_ip,
                     Flow::All => {
                         /* this branch should not be executed */
                         continue;
                     }
                 };
 
-                if !self.trie.empty() {
-                    let (exist, _metadata) = self.trie.search(IpAddr::V4(addr));
-                    if !exist {
-                        continue;
+                let exist = if !self.trie.empty() {
+                    let (exist, filter) = self.trie.search(IpAddr::V4(addr));
+                    if exist {
+                        println!("filter!");
+                        /* todo: do something */
+                        filter.filter(&net_pkt);
+                    }
+
+                    exist
+                } else {
+                    false
+                };
+
+                // regardless of whether it exists, we need to further match it accurately
+                if !exist {
+                    println!("{:?}", self.empty_filter);
+                    if let Some(empty_filter) = &self.empty_filter {
+                        for f in empty_filter {
+                            let (ok, _) = f.filter(&net_pkt);
+                            if ok {
+                                println!("empty filter match!");
+                                break;
+                            }
+                        }
                     }
                 }
 
                 if log::log_enabled!(log::Level::Debug) {
-                    let pkt_line = String::from(format!("{}", flow_pkt));
-                    let output = match flow_pkt.pkt.proto {
+                    let pkt_line = String::from(format!("{}", net_pkt));
+                    let output = match net_pkt.pkt.proto {
                         IpProto::Tcp => pkt_line.bright_green(),
                         IpProto::Udp => pkt_line.bright_yellow(),
                         _ => {
@@ -100,7 +123,7 @@ where
         }
     }
 
-    fn fork_tx(&self) -> mpsc::Sender<FlowPacket> {
+    fn fork_tx(&self) -> mpsc::Sender<NetworkPacket> {
         self.tx.clone()
     }
 }

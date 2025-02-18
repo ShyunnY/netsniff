@@ -6,7 +6,8 @@ use serde::Deserialize;
 use sniff_common::{Flow, ProtoHdr, RawPacket};
 
 #[derive(Debug)]
-pub struct FlowPacket {
+pub struct NetworkPacket {
+    pub iface: String,
     pub flow: Flow,
     pub pkt: Packet,
 }
@@ -58,7 +59,7 @@ impl From<[u8; RawPacket::LEN]> for Packet {
     }
 }
 
-impl Display for FlowPacket {
+impl Display for NetworkPacket {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let now = Local::now();
         write!(
@@ -74,7 +75,7 @@ impl Display for FlowPacket {
     }
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone, Copy)]
 pub enum Protol {
     #[serde(alias = "all")]
     #[default]

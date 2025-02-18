@@ -48,17 +48,36 @@ pub enum Flow {
     All,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 pub enum SubCmd {
     /// Detect all types of (TCP/UDP) traffic
-    All = 0,
+    All,
 
     /// Detect TCP type traffic
-    Tcp = 1,
+    Tcp,
 
     /// Detect UDP type traffic
-    Udp = 2,
+    Udp,
 
     /// Check whether the sniff ebpf program can be mounted correctly
     Check,
+
+    /// Running sniff ebpf program as server
+    Run(Run),
+}
+
+impl SubCmd {
+    pub fn proto_num(&self) -> i32 {
+        match self {
+            SubCmd::Tcp => 1,
+            SubCmd::Udp => 2,
+            _ => 0,
+        }
+    }
+}
+
+#[derive(Parser, Clone)]
+pub struct Run {
+    /// Specify the configuration file to be loaded by sniff
+    pub config: String,
 }
