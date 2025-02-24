@@ -24,7 +24,7 @@ impl RawPacket {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Flow {
     All,
     Ingress,

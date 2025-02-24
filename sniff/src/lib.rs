@@ -1,17 +1,21 @@
-pub mod config;
 pub mod app;
 pub mod cidr;
 pub mod cmd;
+pub mod collector;
+pub mod config;
 pub mod ebpf;
-pub mod network;
 pub mod filter;
+pub mod metrics;
+pub mod network;
 
-pub mod util{
+pub mod util {
     use std::{
-        collections::HashSet, ffi::{c_char, CStr}, io
+        collections::HashSet,
+        ffi::{c_char, CStr},
+        io,
     };
 
-    use anyhow::{Result,anyhow};
+    use anyhow::{anyhow, Result};
 
     pub fn uname() -> io::Result<SysInfo> {
         let mut buf = unsafe { std::mem::zeroed() };
@@ -20,7 +24,7 @@ pub mod util{
             _ => Err(io::Error::last_os_error()),
         }
     }
-    
+
     #[derive(Debug)]
     pub struct SysInfo {
         pub sys_name: String,
@@ -28,7 +32,7 @@ pub mod util{
         pub release: String,
         pub version: String,
     }
-    
+
     impl From<libc::utsname> for SysInfo {
         fn from(value: libc::utsname) -> Self {
             Self {
@@ -39,7 +43,7 @@ pub mod util{
             }
         }
     }
-    
+
     #[inline]
     fn cstr(buf: &[c_char]) -> &CStr {
         unsafe { CStr::from_ptr(buf.as_ptr()) }

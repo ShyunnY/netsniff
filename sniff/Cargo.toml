@@ -19,7 +19,10 @@ chrono = { version = "0.4.39" }
 colored = { version = "3.0.0" }
 network-types = { version = "0.0.7" }
 serde = { version = "1.0.217", features = ["derive"] }
+prometheus = { workspace = true }
 serde_yaml = "0.9.34"
+lazy_static = "1.5.0"
+timer = "0.2.0"
 
 [build-dependencies]
 anyhow = { workspace = true }

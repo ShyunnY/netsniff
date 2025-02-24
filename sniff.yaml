@@ -1,0 +1,22 @@
+trafficConfig:
+    - name: demo1
+      protocol: tcp
+      cidrs: ["123.125.107.0/24"]
+      ports: []
+      in_iface: [enp1s0]
+      out_iface: [enp1s0]
+      label_values:
+          hello: world
+    # - name: demo2
+    #   protocol: udp
+    #   cidrs: ["123.125.0.0/24"]
+    #   ports: [8080]
+    #   in_iface: [enp1s0]
+    #   out_iface: ["lo"]
+    #   label_values:
+    #       hello: world
+# 规则是一个矩阵式的 metrics
+# 例如:
+# {protocol=tcp,port=80,in_iface=enp1s0}
+# {protocol=tcp,port=80,out_iface=enp1s0}
+# iden = demo1_enp1s0_tcp_80

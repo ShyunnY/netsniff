@@ -76,7 +76,7 @@ impl Display for NetworkPacket {
 }
 
 #[derive(Debug, Deserialize, Default, Clone, Copy)]
-pub enum Protol {
+pub enum Proto {
     #[serde(alias = "all")]
     #[default]
     ALL,
@@ -86,12 +86,12 @@ pub enum Protol {
     UDP,
 }
 
-impl From<i32> for Protol {
+impl From<i32> for Proto {
     fn from(val: i32) -> Self {
         match val {
-            1 => Protol::TCP,
-            2 => Protol::UDP,
-            _ => Protol::ALL,
+            1 => Proto::TCP,
+            2 => Proto::UDP,
+            _ => Proto::ALL,
         }
     }
 }

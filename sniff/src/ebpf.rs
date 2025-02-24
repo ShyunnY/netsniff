@@ -39,14 +39,14 @@ pub async fn load_ingress_sched_cls(iface: String, proto: i32, tx: mpsc::Sender<
     };
 
     if let Err(e) = aya_log::EbpfLogger::init(&mut ebpf) {
-        warn!("failed to initialize kernal eBPF logger: {}", e);
+        warn!("failed to initialize kernel eBPF logger: {}", e);
     }
 
     let _ = tc::qdisc_add_clsact(&iface);
     let prog: &mut SchedClassifier = ebpf.program_mut("sniff").unwrap().try_into().unwrap();
     if let Err(e) = prog.load() {
         error!(
-            "failed to load the ingress eBPF program(TC) to the kernal by error: {}",
+            "failed to load the ingress eBPF program(TC) to the kernel by error: {}",
             e
         );
         return;
@@ -61,7 +61,7 @@ pub async fn load_ingress_sched_cls(iface: String, proto: i32, tx: mpsc::Sender<
         return;
     } else {
         info!(
-            "suceess to attach the ingress eBPF program(TC) to the '{}' network interface!",
+            "success to attach the ingress eBPF program(TC) to the '{}' network interface!",
             iface
         );
     }
@@ -122,14 +122,14 @@ pub async fn load_egress_sched_cls(iface: String, proto: i32, tx: mpsc::Sender<N
     };
 
     if let Err(e) = aya_log::EbpfLogger::init(&mut ebpf) {
-        warn!("failed to initialize kernal eBPF logger: {}", e);
+        warn!("failed to initialize kernel eBPF logger: {}", e);
     }
 
     let _ = tc::qdisc_add_clsact(&iface);
     let prog: &mut SchedClassifier = ebpf.program_mut("sniff").unwrap().try_into().unwrap();
     if let Err(e) = prog.load() {
         error!(
-            "failed to load the egress eBPF program(TC) to the kernal by error: {}",
+            "failed to load the egress eBPF program(TC) to the kernel by error: {}",
             e
         );
         return;
@@ -143,7 +143,7 @@ pub async fn load_egress_sched_cls(iface: String, proto: i32, tx: mpsc::Sender<N
         return;
     } else {
         info!(
-            "suceess to attach the egress eBPF program(TC) to the '{}' network interface!",
+            "success to attach the egress eBPF program(TC) to the '{}' network interface!",
             iface
         );
     }
@@ -213,14 +213,14 @@ pub fn check_attach(iface: String, flow: Flow) {
     };
 
     if let Err(e) = aya_log::EbpfLogger::init(&mut ebpf) {
-        warn!("failed to initialize kernal eBPF logger: {}", e);
+        warn!("failed to initialize kernel eBPF logger: {}", e);
     }
 
     let _ = tc::qdisc_add_clsact(&iface);
     let prog: &mut SchedClassifier = ebpf.program_mut("sniff").unwrap().try_into().unwrap();
     if let Err(e) = prog.load() {
         error!(
-            "failed to load the {:?} eBPF program(TC) to the kernal by error: {}",
+            "failed to load the {:?} eBPF program(TC) to the kernel by error: {}",
             attach_type, e
         );
         return;
@@ -234,7 +234,7 @@ pub fn check_attach(iface: String, flow: Flow) {
         return;
     } else {
         info!(
-            "suceess to attach the {:?} eBPF program(TC) to the '{}' network interface!",
+            "success to attach the {:?} eBPF program(TC) to the '{}' network interface!",
             attach_type, iface
         );
     }
@@ -242,7 +242,7 @@ pub fn check_attach(iface: String, flow: Flow) {
     match RingBuf::try_from(ebpf.map_mut("PACKET_DATA").unwrap()) {
         Ok(_) => {
             info!(
-                "suceess to load the {:?} eBPF program(TC) RingBuf!",
+                "success to load the {:?} eBPF program(TC) RingBuf!",
                 attach_type
             );
         }

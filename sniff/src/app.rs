@@ -1,20 +1,32 @@
-use std::{net::IpAddr, sync::Arc};
+use std::{
+    net::{IpAddr, Ipv4Addr},
+    sync::Arc,
+};
 
 use colored::Colorize;
 use log::info;
-use network_types::ip::IpProto;
 use sniff_common::Flow;
 use tokio::sync::mpsc;
 
-use crate::{cidr::PrefixTree, ebpf, filter::Filter, network::NetworkPacket, util};
+use crate::{
+    cidr::PrefixTree,
+    collector::MetricsExporter,
+    ebpf,
+    filter::{convert_line_identity, Filter},
+    network::NetworkPacket,
+    util,
+};
 
 pub struct Application {
     pub ifaces: Vec<String>,
-    pub trie: PrefixTree<Arc<Box<Filter>>>,
 
+    pub trie: PrefixTree<Arc<Box<Filter>>>,
     pub empty_filter: Option<Vec<Arc<Box<Filter>>>>,
+
     pub rx: mpsc::Receiver<NetworkPacket>,
     pub tx: mpsc::Sender<NetworkPacket>,
+
+    pub exporter: Option<Arc<MetricsExporter>>,
 }
 
 impl Application {
@@ -22,20 +34,28 @@ impl Application {
         ifaces: Vec<String>,
         trie: PrefixTree<Arc<Box<Filter>>>,
         empty_filter: Option<Vec<Arc<Box<Filter>>>>,
+        exporter: Option<MetricsExporter>,
     ) -> Self {
         let (tx, rx) = mpsc::channel(4096 * 4096);
+        let exporter = if let Some(exp) = exporter {
+            Some(Arc::new(exp))
+        } else {
+            None
+        };
+
         Self {
             ifaces,
             trie,
             rx,
             tx,
             empty_filter,
+            exporter,
         }
     }
 
     pub async fn run(&mut self, proto: i32, flow: Flow) {
         info!(
-            "start sniff traffic process, flow: {:?}, kernal: {:?}",
+            "start sniff traffic process, flow: {:?}, kernel: {:?}",
             flow,
             util::uname().unwrap().release,
         );
@@ -69,6 +89,7 @@ impl Application {
             }
         }
 
+        self.startup_exporter().await;
         loop {
             if let Some(net_pkt) = self.rx.recv().await {
                 let addr = match net_pkt.flow {
@@ -80,46 +101,68 @@ impl Application {
                     }
                 };
 
-                let exist = if !self.trie.empty() {
-                    let (exist, filter) = self.trie.search(IpAddr::V4(addr));
-                    if exist {
-                        println!("filter!");
-                        /* todo: do something */
-                        filter.filter(&net_pkt);
-                    }
-
-                    exist
-                } else {
-                    false
-                };
-
-                // regardless of whether it exists, we need to further match it accurately
-                if !exist {
-                    println!("{:?}", self.empty_filter);
-                    if let Some(empty_filter) = &self.empty_filter {
-                        for f in empty_filter {
-                            let (ok, _) = f.filter(&net_pkt);
-                            if ok {
-                                println!("empty filter match!");
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if log::log_enabled!(log::Level::Debug) {
-                    let pkt_line = String::from(format!("{}", net_pkt));
-                    let output = match net_pkt.pkt.proto {
-                        IpProto::Tcp => pkt_line.bright_green(),
-                        IpProto::Udp => pkt_line.bright_yellow(),
-                        _ => {
-                            continue;
-                        }
-                    };
-                    println!("{output}");
-                }
                 /* handler something */
+                self.search_and_filter(addr, &net_pkt).await;
             }
+        }
+    }
+
+    #[inline]
+    async fn search_and_filter(&self, addr: Ipv4Addr, net_pkt: &NetworkPacket) {
+        if !self.trie.empty() {
+            let (exit, filter) = self.trie.search(IpAddr::V4(addr));
+            if exit {
+                let (ok, _) = filter.filter(net_pkt);
+                if ok {
+                    self.record_exporter(&filter.rule_name(), net_pkt, filter.enable_port())
+                        .await;
+                    self.log_packet(&net_pkt);
+                }
+            }
+        } else if let Some(empty_filter) = &self.empty_filter {
+            for filter in empty_filter {
+                let (ok, _) = filter.filter(&net_pkt);
+                if ok {
+                    self.log_packet(&net_pkt);
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Output logs in different colors according to traffic direction
+    fn log_packet(&self, net_pkt: &NetworkPacket) {
+        if log::log_enabled!(log::Level::Debug) {
+            let pkt_line = String::from(format!("{}", net_pkt));
+            let output = match net_pkt.flow {
+                Flow::Ingress => pkt_line.bright_green(),
+                Flow::Egress => pkt_line.bright_yellow(),
+                _ => return,
+            };
+            println!("{output}");
+        }
+    }
+
+    /// record packet information to exporter, if set
+    async fn record_exporter(&self, name: &String, net_pkt: &NetworkPacket, has_port: bool) {
+        if let Some(exporter) = &self.exporter {
+            let identity = convert_line_identity(net_pkt.flow, name, &net_pkt.iface, {
+                if has_port {
+                    net_pkt.pkt.dst.to_string()
+                } else {
+                    "undefine".to_string()
+                }
+            });
+            exporter.add(&identity, net_pkt.pkt.length).await
+        }
+    }
+
+    async fn startup_exporter(&mut self) {
+        if let Some(exporter) = &self.exporter {
+            let clone = exporter.clone();
+            tokio::spawn(async move {
+                clone.flush().await;
+            });
         }
     }
 

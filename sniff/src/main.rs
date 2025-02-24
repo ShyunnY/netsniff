@@ -7,9 +7,11 @@ use sniff::{
     app::Application,
     cidr::PrefixTree,
     cmd::{self, Cmd},
+    collector::MetricsExporter,
     config::Traffic,
     ebpf,
     filter::Filter,
+    metrics,
 };
 use tokio::signal;
 
@@ -39,6 +41,8 @@ async fn main() -> anyhow::Result<()> {
                         let mut flow = 0x3;
                         let mut proto: i32 = 0x3;
                         let mut empty_filter: Vec<Arc<Box<Filter>>> = Vec::new();
+                        let mut metrics_exporter = MetricsExporter::new();
+
                         for item in c {
                             proto &= item.protocol as i32;
                             flow &= item.bind_flow() as i32;
@@ -46,8 +50,19 @@ async fn main() -> anyhow::Result<()> {
                             // only get the intersection of the network interfaces
                             let cidrs = item.cidrs.clone();
                             let filter_item: Filter = item.into();
+
                             ifaces.extend(filter_item.in_iface_filter.clone());
                             ifaces.extend(filter_item.out_iface_filter.clone());
+
+                            // init metrics
+                            metrics::build_metrics(
+                                &filter_item.rule_name(),
+                                &filter_item.label_values,
+                            );
+
+                            for identity in filter_item.identifier() {
+                                metrics_exporter.insert(identity).await;
+                            }
 
                             let filter: Arc<Box<Filter>> = Arc::new(Box::new(filter_item));
                             match cidrs {
@@ -67,8 +82,12 @@ async fn main() -> anyhow::Result<()> {
                             }
                         }
 
-                        let mut application =
-                            Application::new(ifaces.into_iter().collect(), trie, Some(empty_filter));
+                        let mut application = Application::new(
+                            ifaces.into_iter().collect(),
+                            trie,
+                            Some(empty_filter),
+                            Some(metrics_exporter),
+                        );
                         tokio::spawn(async move { application.run(proto, flow.into()).await });
                     }
                 }
@@ -107,7 +126,7 @@ async fn main() -> anyhow::Result<()> {
                 cmd::Flow::All => sniff_common::Flow::All,
             };
 
-            let mut application = Application::new(ifaces.into_iter().collect(), trie, None);
+            let mut application = Application::new(ifaces.into_iter().collect(), trie, None, None);
             tokio::spawn(async move { application.run(proto, flow).await });
         }
     };
