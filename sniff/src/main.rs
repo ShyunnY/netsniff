@@ -7,7 +7,7 @@ use sniff::{
     app::Application,
     cidr::PrefixTree,
     cmd::{self, Cmd},
-    collector::MetricsExporter,
+    collector::CollectorMap,
     config::Traffic,
     ebpf,
     filter::Filter,
@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
                         let mut flow = 0x3;
                         let mut proto: i32 = 0x3;
                         let mut empty_filter: Vec<Arc<Box<Filter>>> = Vec::new();
-                        let mut metrics_exporter = MetricsExporter::new();
+                        let mut collector_map = CollectorMap::new();
 
                         for item in c {
                             proto &= item.protocol as i32;
@@ -55,13 +55,15 @@ async fn main() -> anyhow::Result<()> {
                             ifaces.extend(filter_item.out_iface_filter.clone());
 
                             // init metrics
-                            metrics::build_metrics(
+                            if let Err(e) = metrics::build_metrics(
                                 &filter_item.rule_name(),
                                 &filter_item.label_values,
-                            );
+                            ) {
+                                error!("failed to build metrics by err {}", e);
+                            }
 
                             for identity in filter_item.identifier() {
-                                metrics_exporter.insert(identity).await;
+                                collector_map.insert(identity).await;
                             }
 
                             let filter: Arc<Box<Filter>> = Arc::new(Box::new(filter_item));
@@ -86,7 +88,7 @@ async fn main() -> anyhow::Result<()> {
                             ifaces.into_iter().collect(),
                             trie,
                             Some(empty_filter),
-                            Some(metrics_exporter),
+                            Some(collector_map),
                         );
                         tokio::spawn(async move { application.run(proto, flow.into()).await });
                     }
@@ -98,6 +100,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         _ => {
+            // TODO: handler empty filter case
             info!("read configuration from a command flag");
             let ifaces = get_cmd_ifaces(&command);
             let proto = command.sub_cmd.proto_num();

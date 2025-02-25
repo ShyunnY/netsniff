@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 
 use crate::{
     cidr::PrefixTree,
-    collector::MetricsExporter,
+    collector::CollectorMap,
     ebpf,
     filter::{convert_line_identity, Filter},
     network::NetworkPacket,
@@ -26,7 +26,7 @@ pub struct Application {
     pub rx: mpsc::Receiver<NetworkPacket>,
     pub tx: mpsc::Sender<NetworkPacket>,
 
-    pub exporter: Option<Arc<MetricsExporter>>,
+    pub collector: Option<Arc<CollectorMap>>,
 }
 
 impl Application {
@@ -34,10 +34,10 @@ impl Application {
         ifaces: Vec<String>,
         trie: PrefixTree<Arc<Box<Filter>>>,
         empty_filter: Option<Vec<Arc<Box<Filter>>>>,
-        exporter: Option<MetricsExporter>,
+        collector: Option<CollectorMap>,
     ) -> Self {
         let (tx, rx) = mpsc::channel(4096 * 4096);
-        let exporter = if let Some(exp) = exporter {
+        let collector = if let Some(exp) = collector {
             Some(Arc::new(exp))
         } else {
             None
@@ -49,7 +49,7 @@ impl Application {
             rx,
             tx,
             empty_filter,
-            exporter,
+            collector,
         }
     }
 
@@ -145,7 +145,7 @@ impl Application {
 
     /// record packet information to exporter, if set
     async fn record_exporter(&self, name: &String, net_pkt: &NetworkPacket, has_port: bool) {
-        if let Some(exporter) = &self.exporter {
+        if let Some(exporter) = &self.collector {
             let identity = convert_line_identity(net_pkt.flow, name, &net_pkt.iface, {
                 if has_port {
                     net_pkt.pkt.dst.to_string()
@@ -158,7 +158,7 @@ impl Application {
     }
 
     async fn startup_exporter(&mut self) {
-        if let Some(exporter) = &self.exporter {
+        if let Some(exporter) = &self.collector {
             let clone = exporter.clone();
             tokio::spawn(async move {
                 clone.flush().await;

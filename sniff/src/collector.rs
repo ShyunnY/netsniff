@@ -1,29 +1,29 @@
 use std::{collections::HashMap, time::Duration};
 
-use chrono::Local;
-
 use crate::{filter::convert_identity_map, metrics};
 
-type DataMap = tokio::sync::RwLock<HashMap<String, PacketMetrics>>;
+type DataMap = tokio::sync::RwLock<HashMap<String, PacketCollector>>;
 
-/// MetricsExporter exports network packets into metrics
-pub struct MetricsExporter {
-    // TODO: Maybe we can do it lock-free?
+/// Collects the network packet size for each rule
+pub struct CollectorMap {
     packet_data: DataMap,
 }
 
-#[derive(Debug)]
-struct PacketMetrics {
+struct PacketCollector {
     data_totol: u64,
 }
 
-impl PacketMetrics {
+impl PacketCollector {
     pub fn new() -> Self {
         Self { data_totol: 0 }
     }
 
-    pub fn inc(&mut self, tol: u16) {
-        self.data_totol += tol as u64;
+    pub fn inc(&mut self, data_tol: u16) {
+        self.data_totol += data_tol as u64;
+    }
+
+    pub fn clear(&mut self) {
+        self.data_totol = 0;
     }
 
     pub fn get(&self) -> u64 {
@@ -31,7 +31,7 @@ impl PacketMetrics {
     }
 }
 
-impl MetricsExporter {
+impl CollectorMap {
     pub fn new() -> Self {
         Self {
             packet_data: tokio::sync::RwLock::new(HashMap::new()),
@@ -40,32 +40,29 @@ impl MetricsExporter {
 
     pub async fn insert(&mut self, name: String) {
         let mut guard = self.packet_data.write().await;
-        (*guard).insert(name, PacketMetrics::new());
+        (*guard).insert(name, PacketCollector::new());
     }
 
     pub async fn add(&self, name: &String, data_tol: u16) {
         let mut guard = self.packet_data.write().await;
-        match (*guard).get_mut(name) {
-            Some(pm) => {
-                pm.inc(data_tol);
-            }
-            None => {}
+        if let Some(c) = (*guard).get_mut(name) {
+            c.inc(data_tol);
         }
     }
 
     pub async fn flush(&self) {
-        // TODO: need a more granular data export?
+        // TODO: interval should be configurable
         let mut tick = tokio::time::interval(Duration::from_secs(1));
         loop {
             tick.tick().await;
-            println!("tick! now = {}", Local::now().format("[%Y-%m-%d %H:%M:%S]"));
-            let guard = self.packet_data.read().await;
-            (*guard).iter().for_each(|(line, item)| {
+
+            let mut guard = self.packet_data.write().await;
+            (*guard).iter_mut().for_each(|(line, item)| {
                 let meta_kvs = convert_identity_map(&line).unwrap();
                 metrics::set_gauge(item.get() as i64, &meta_kvs);
-            });
 
-            metrics::export();
+                item.clear();
+            });
         }
     }
 }

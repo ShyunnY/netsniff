@@ -1,35 +1,35 @@
 use std::collections::HashMap;
 
+use anyhow::{Ok, Result};
 use log::info;
-use prometheus::{IntGaugeVec, Opts, TextEncoder};
+use prometheus::{IntGaugeVec, Opts};
 
 static mut PACKET_TOL: Option<HashMap<String, Box<IntGaugeVec>>> = None;
 
-// todo: handler err handler
 #[allow(static_mut_refs)]
-pub fn build_metrics(name: &String, label_values: &HashMap<String, String>) {
-    unsafe {
+pub fn build_metrics(name: &String, label_values: &HashMap<String, String>) -> Result<()> {
+    let m = unsafe {
         if PACKET_TOL.is_none() {
             PACKET_TOL = Some(HashMap::new());
         }
 
-        let m = PACKET_TOL.as_mut().unwrap();
-        let gauge = Box::new(
-            IntGaugeVec::new(
-                Opts::new(
-                    "packet_tol",
-                    "record the size of incoming and outgoing packets",
-                )
-                .const_labels(label_values.clone()),
-                &["rule_name", "traffic", "iface", "port"],
-            )
-            .unwrap(),
-        );
-        prometheus::register(gauge.clone()).unwrap();
-        m.insert(name.to_owned(), gauge);
+        PACKET_TOL.as_mut().unwrap()
+    };
 
-        info!("success to build '{}' metrics", name)
-    }
+    let gauge = Box::new(IntGaugeVec::new(
+        Opts::new(
+            "network_packet_tol",
+            "record the size of incoming and outgoing network packets",
+        )
+        .const_labels(label_values.clone()),
+        &["rule_name", "traffic", "iface", "port"],
+    )?);
+    prometheus::register(gauge.clone())?;
+    m.insert(name.to_owned(), gauge);
+
+    info!("success to build '{}' metrics", name);
+
+    Ok(())
 }
 
 #[allow(static_mut_refs)]
@@ -46,10 +46,4 @@ pub fn set_gauge(val: i64, label_values: &HashMap<&str, &str>) {
     if let Some(gauge) = metrics_map.get(&name) {
         gauge.with(&label_values).set(val);
     }
-}
-
-pub fn export() {
-    let text_enc = TextEncoder::new();
-    let mf = prometheus::gather();
-    println!("{}", text_enc.encode_to_string(&mf).unwrap());
 }

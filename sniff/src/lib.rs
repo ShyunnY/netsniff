@@ -44,11 +44,11 @@ pub mod util {
         }
     }
 
-    #[inline]
     fn cstr(buf: &[c_char]) -> &CStr {
         unsafe { CStr::from_ptr(buf.as_ptr()) }
     }
 
+    /// lookup whether the given network interface exists on the current host.
     pub fn lookup_interface(iface_set: HashSet<&str>) -> Result<()> {
         let mut result = HashSet::new();
         unsafe {
