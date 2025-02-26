@@ -63,7 +63,7 @@ async fn main() -> anyhow::Result<()> {
                             }
 
                             for identity in filter_item.identifier() {
-                                collector_map.insert(identity).await;
+                                collector_map.insert(identity);
                             }
 
                             let filter: Arc<Box<Filter>> = Arc::new(Box::new(filter_item));

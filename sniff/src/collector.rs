@@ -1,8 +1,12 @@
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicU64, Ordering},
+    time::Duration,
+};
 
 use crate::{filter::convert_identity_map, metrics};
 
-type DataMap = tokio::sync::RwLock<HashMap<String, PacketCollector>>;
+type DataMap = HashMap<String, PacketCollector>;
 
 /// Collects the network packet size for each rule
 pub struct CollectorMap {
@@ -10,43 +14,46 @@ pub struct CollectorMap {
 }
 
 struct PacketCollector {
-    data_totol: u64,
+    data_total: AtomicU64,
 }
 
 impl PacketCollector {
     pub fn new() -> Self {
-        Self { data_totol: 0 }
+        Self {
+            data_total: AtomicU64::new(0),
+        }
     }
 
-    pub fn inc(&mut self, data_tol: u16) {
-        self.data_totol += data_tol as u64;
+    pub fn set(&self, data_tol: u16) {
+        // "Acquire" is used here to avoid reordering subsequent operations.
+        let val = self.data_total.load(Ordering::Acquire);
+        self.data_total
+            .store(val + (data_tol as u64), Ordering::Relaxed);
     }
 
-    pub fn clear(&mut self) {
-        self.data_totol = 0;
+    pub fn clear(&self) {
+        self.data_total.store(0, Ordering::Relaxed);
     }
 
     pub fn get(&self) -> u64 {
-        self.data_totol
+        self.data_total.load(Ordering::Relaxed)
     }
 }
 
 impl CollectorMap {
     pub fn new() -> Self {
         Self {
-            packet_data: tokio::sync::RwLock::new(HashMap::new()),
+            packet_data: HashMap::new(),
         }
     }
 
-    pub async fn insert(&mut self, name: String) {
-        let mut guard = self.packet_data.write().await;
-        (*guard).insert(name, PacketCollector::new());
+    pub fn insert(&mut self, name: String) {
+        self.packet_data.insert(name, PacketCollector::new());
     }
 
-    pub async fn add(&self, name: &String, data_tol: u16) {
-        let mut guard = self.packet_data.write().await;
-        if let Some(c) = (*guard).get_mut(name) {
-            c.inc(data_tol);
+    pub fn add(&self, name: &String, data_tol: u16) {
+        if let Some(c) = self.packet_data.get(name) {
+            c.set(data_tol);
         }
     }
 
@@ -56,8 +63,7 @@ impl CollectorMap {
         loop {
             tick.tick().await;
 
-            let mut guard = self.packet_data.write().await;
-            (*guard).iter_mut().for_each(|(line, item)| {
+            self.packet_data.iter().for_each(|(line, item)| {
                 let meta_kvs = convert_identity_map(&line).unwrap();
                 metrics::set_gauge(item.get() as i64, &meta_kvs);
 

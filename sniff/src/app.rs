@@ -153,7 +153,7 @@ impl Application {
                     "undefine".to_string()
                 }
             });
-            exporter.add(&identity, net_pkt.pkt.length).await
+            exporter.add(&identity, net_pkt.pkt.length);
         }
     }
 
