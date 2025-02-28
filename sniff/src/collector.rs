@@ -4,7 +4,14 @@ use std::{
     time::Duration,
 };
 
-use crate::{filter::convert_identity_map, metrics};
+use network_types::ip::IpProto;
+use sniff_common::Flow;
+
+use crate::{
+    filter::Filter,
+    metrics,
+    network::{NetworkPacket, Proto},
+};
 
 type DataMap = HashMap<String, PacketCollector>;
 
@@ -59,16 +66,125 @@ impl CollectorMap {
 
     pub async fn flush(&self) {
         // TODO: interval should be configurable
-        let mut tick = tokio::time::interval(Duration::from_secs(1));
+        let mut tick = tokio::time::interval(Duration::from_secs(3));
         loop {
             tick.tick().await;
 
-            self.packet_data.iter().for_each(|(line, item)| {
-                let meta_kvs = convert_identity_map(&line).unwrap();
+            self.packet_data.iter().for_each(|(identity_line, item)| {
+                let meta_kvs = identity_to_label_values(&identity_line);
                 metrics::set_gauge(item.get() as i64, &meta_kvs);
 
                 item.clear();
             });
         }
     }
+}
+
+pub fn identity_to_label_values<'a>(identity_line: &'a String) -> HashMap<&'a str,&'a str>{
+    let values: Vec<&str> = identity_line.split("_").collect();
+    let mut result = HashMap::with_capacity(metrics::PACKET_TOL_LV_CAP);
+
+    result.insert("rule_name", values[0]);
+    result.insert("traffic", values[1]);
+    result.insert("protocol", values[2]);
+    result.insert("network_iface", values[3]);
+    result.insert("port", values[4]);
+
+    result
+}
+
+/// Converts a [NetworkPacket] to an Identity unique identifier. 
+/// 
+/// This function is mainly used to find its [PacketCollector] in [Collector]. 
+/// For more information, see [filter_to_identity]
+pub fn netpkt_to_identity(
+    rule_name: &String,
+    enable_port: bool,
+    net_pkt: &NetworkPacket,
+) -> String {
+    let (traffic, port) = match &net_pkt.flow {
+        Flow::Ingress => ("ingress", {
+            if enable_port {
+                net_pkt.pkt.dst.to_string()
+            } else {
+                "undefine".to_string()
+            }
+        }),
+        Flow::Egress => ("egress", "unsupport".to_string()),
+        Flow::All => panic!("should be no bidirectional traffic type"),
+    };
+
+    let proto = match &net_pkt.pkt.proto {
+        IpProto::Tcp => "tcp",
+        IpProto::Udp => "udp",
+        _ => panic!(
+            "protocol is currently not supported: {:?}",
+            &net_pkt.pkt.proto
+        ),
+    };
+
+    format!(
+        "{}_{}_{}_{}_{}",
+        rule_name, traffic, proto, &net_pkt.iface, port
+    )
+}
+
+/// Convert filter to Identity string identifier.
+/// `rule_name`` is unique, so we can combine rule_name with traffic direction, protocol, port, etc. to form a unique identifier.
+/// 
+/// The unique identifier can offload a lot of metadata to find its associated [PacketCollector] in [Collector]
+/// 
+/// * format it follows is: `<rule_name>_<flow>_<protocol>_<iface>_<port>`
+/// * final effect demo is as follows: `demo1_ingress_tcp_enp1s0_undefine`
+pub fn filter_to_identity(filter: &Filter) -> Vec<String> {
+    let mut identitys = Vec::new();
+
+    let must_proto = match filter.protocol {
+        Proto::TCP => vec!["tcp"],
+        Proto::UDP => vec!["udp"],
+        Proto::ALL => vec!["tcp", "udp"],
+    };
+
+    for iface in &filter.in_iface_filter {
+        if filter.in_port_filter.len() > 0 {
+            for port in &filter.in_port_filter {
+                for proto in &must_proto {
+                    identitys.push(format!(
+                        "{}_{}_{}_{}_{}",
+                        filter.rule_name(),
+                        "ingress",
+                        proto,
+                        iface,
+                        port
+                    ));
+                }
+            }
+        } else {
+            for proto in &must_proto {
+                identitys.push(format!(
+                    "{}_{}_{}_{}_{}",
+                    filter.rule_name(),
+                    "ingress",
+                    proto,
+                    iface,
+                    "undefine"
+                ));
+            }
+        }
+    }
+
+    for iface in &filter.out_iface_filter {
+        for proto in &must_proto {
+            identitys.push(format!(
+                "{}_{}_{}_{}_{}",
+                filter.rule_name(),
+                "egress",
+                proto,
+                iface,
+                "unsupport",
+            ));
+        }
+    }
+
+    identitys
 }

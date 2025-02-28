@@ -10,9 +10,9 @@ use tokio::sync::mpsc;
 
 use crate::{
     cidr::PrefixTree,
-    collector::CollectorMap,
+    collector::{self, CollectorMap},
     ebpf,
-    filter::{convert_line_identity, Filter},
+    filter::Filter,
     network::NetworkPacket,
     util,
 };
@@ -144,15 +144,9 @@ impl Application {
     }
 
     /// record packet information to exporter, if set
-    async fn record_exporter(&self, name: &String, net_pkt: &NetworkPacket, has_port: bool) {
+    async fn record_exporter(&self, rule_name: &String, net_pkt: &NetworkPacket, enable_port: bool) {
         if let Some(exporter) = &self.collector {
-            let identity = convert_line_identity(net_pkt.flow, name, &net_pkt.iface, {
-                if has_port {
-                    net_pkt.pkt.dst.to_string()
-                } else {
-                    "undefine".to_string()
-                }
-            });
+            let identity = collector::netpkt_to_identity(rule_name, enable_port, &net_pkt);
             exporter.add(&identity, net_pkt.pkt.length);
         }
     }

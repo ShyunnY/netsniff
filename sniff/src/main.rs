@@ -7,7 +7,7 @@ use sniff::{
     app::Application,
     cidr::PrefixTree,
     cmd::{self, Cmd},
-    collector::CollectorMap,
+    collector::{self, CollectorMap},
     config::Traffic,
     ebpf,
     filter::Filter,
@@ -62,7 +62,8 @@ async fn main() -> anyhow::Result<()> {
                                 error!("failed to build metrics by err {}", e);
                             }
 
-                            for identity in filter_item.identifier() {
+                            for identity in collector::filter_to_identity(&filter_item) {
+                                println!("{}",identity);
                                 collector_map.insert(identity);
                             }
 

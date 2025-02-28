@@ -91,7 +91,7 @@ pub struct ConfigItem {
     pub name: String,
     #[serde(default)]
     pub protocol: network::Proto,
-    pub ports: OptionVec<u16>,
+    pub in_ports: OptionVec<u16>,
     pub cidrs: OptionVec<String>,
     pub in_iface: OptionVec<String>,
     pub out_iface: OptionVec<String>,
@@ -129,7 +129,7 @@ trafficConfig:
       - "1.0.0.0/24"
       - "2.3.0.0/16"
     # check
-    ports:
+    in_ports:
       - 8080
       - 7070
     in_iface: [lo]

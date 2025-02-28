@@ -6,6 +6,8 @@ use prometheus::{IntGaugeVec, Opts};
 
 static mut PACKET_TOL: Option<HashMap<String, Box<IntGaugeVec>>> = None;
 
+pub const PACKET_TOL_LV_CAP: usize = 5;
+
 #[allow(static_mut_refs)]
 pub fn build_metrics(name: &String, label_values: &HashMap<String, String>) -> Result<()> {
     let m = unsafe {
@@ -18,15 +20,14 @@ pub fn build_metrics(name: &String, label_values: &HashMap<String, String>) -> R
 
     let gauge = Box::new(IntGaugeVec::new(
         Opts::new(
-            "network_packet_tol",
+            "network_packet_tolal",
             "record the size of incoming and outgoing network packets",
         )
         .const_labels(label_values.clone()),
-        &["rule_name", "traffic", "iface", "port"],
+        &["rule_name", "traffic", "protocol", "network_iface", "port"],
     )?);
     prometheus::register(gauge.clone())?;
     m.insert(name.to_owned(), gauge);
-
     info!("success to build '{}' metrics", name);
 
     Ok(())
