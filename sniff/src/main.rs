@@ -32,17 +32,22 @@ async fn main() -> anyhow::Result<()> {
         cmd::SubCmd::Run(run) => {
             info!("read configuration from a config file");
             match Traffic::load_config_path(&run.config) {
-                Ok(config) => {
+                Ok(mut config) => {
                     config.check()?;
 
-                    if let Some(c) = config.traffic_config {
+                    // init metrics
+                    if let Err(e) = metrics::build_metrics(config.const_labels()) {
+                        error!("failed to build metrics by err {}", e);
+                    }
+
+                    if let Some(c) = config.rules {
                         let mut trie = PrefixTree::<Arc<Box<Filter>>>::new();
                         let mut ifaces: HashSet<String> = HashSet::new();
                         let mut flow = 0x3;
                         let mut proto: i32 = 0x3;
                         let mut empty_filter: Vec<Arc<Box<Filter>>> = Vec::new();
                         let mut collector_map = CollectorMap::new();
-
+                        
                         for item in c {
                             proto &= item.protocol as i32;
                             flow &= item.bind_flow() as i32;
@@ -54,23 +59,22 @@ async fn main() -> anyhow::Result<()> {
                             ifaces.extend(filter_item.in_iface_filter.clone());
                             ifaces.extend(filter_item.out_iface_filter.clone());
 
-                            // init metrics
-                            if let Err(e) = metrics::build_metrics(
-                                &filter_item.rule_name(),
-                                &filter_item.label_values,
-                            ) {
-                                error!("failed to build metrics by err {}", e);
-                            }
-
                             for identity in collector::filter_to_identity(&filter_item) {
-                                info!("build metrics identity: [{}]",identity);
-                                collector_map.insert(identity);
+                                info!("build metrics identity: [{}]", identity);
+                                collector_map.insert(
+                                    identity,
+                                    if filter_item.label_values.len() != 0 {
+                                        Some(filter_item.label_values.clone())
+                                    } else {
+                                        None
+                                    },
+                                );
                             }
 
                             let filter: Arc<Box<Filter>> = Arc::new(Box::new(filter_item));
                             match cidrs {
                                 Some(cidrs) if cidrs.len() != 0 => {
-                                    /* handler non-empty */
+                                    /* handler non-empty filters */
                                     for cidr in cidrs {
                                         trie.insert(
                                             Ipv4Network::from_str(cidr.as_ref())?,
@@ -79,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
                                     }
                                 }
                                 _ => {
-                                    /* handler empty */
+                                    /* handler empty filters */
                                     empty_filter.push(filter);
                                 }
                             }

@@ -14,8 +14,10 @@ use crate::{network, util};
 
 #[derive(Debug, Deserialize)]
 pub struct Traffic {
-    #[serde(rename(deserialize = "trafficConfig"))]
-    pub traffic_config: Option<Vec<ConfigItem>>,
+    #[serde(rename(deserialize = "constLabels"))]
+    pub const_labels: Option<Vec<String>>,
+    #[serde(rename(deserialize = "rules"))]
+    pub rules: Option<Vec<ConfigItem>>,
 }
 
 impl Traffic {
@@ -30,24 +32,29 @@ impl Traffic {
     where
         R: io::Read,
     {
-        let traffic: Self = serde_yaml::from_reader(reader)?;
+        let mut traffic: Self = serde_yaml::from_reader(reader)?;
         traffic.check()?;
 
         Ok(traffic)
     }
 
-    pub fn check(&self) -> Result<()> {
-        match self.traffic_config.as_ref() {
+    pub fn check(&mut self) -> Result<()> {
+        match self.rules.as_ref() {
             Some(_) => self.check_config(),
             None => Ok(()),
         }
     }
 
-    fn check_config<'a>(&'a self) -> Result<()> {
-        let config = self.traffic_config.as_ref().unwrap();
+    fn check_config<'a>(&'a mut self) -> Result<()> {
+        let config = self.rules.as_mut().unwrap();
         let mut lookup_iface: HashSet<&'a str> = HashSet::new();
+        let labels_map: HashSet<String> = if let Some(labels) = &self.const_labels {
+            labels.iter().map(|k| k.to_owned()).collect()
+        } else {
+            HashSet::new()
+        };
 
-        for item in config {
+        for item in config.iter_mut() {
             // check if the network interface exists
             if let Some(ifaces) = item.in_iface.as_ref() {
                 ifaces.iter().for_each(|i| {
@@ -77,10 +84,49 @@ impl Traffic {
                     }
                 }
             }
+
+            // checks if the rule instance matches constLabel
+            // several situations:
+            // + Exists in constLabel but not in constValues, in this case we set values ​​to unset
+            // + Does not exist in constLabel but exists in constValues, in this case we panic
+            // + Part of constValues ​​exists, in this case we add unset to values
+            if let Some(values_map) = &item.const_values {
+                for (k, _) in values_map {
+                    if (!labels_map.is_empty() && !labels_map.contains(k))
+                        || (labels_map.is_empty() && !values_map.is_empty())
+                    {
+                        return Err(anyhow!(
+                            "label={} in the {} rule does not match that in constLabels or constLabels is empty",
+                            k,
+                            item.name
+                        ));
+                    }
+                }
+            } else {
+                let mut empty_values = HashMap::with_capacity(labels_map.capacity());
+                for k in labels_map.iter() {
+                    empty_values.insert(k.to_owned(), "unset".to_string());
+                }
+                item.const_values.replace(empty_values);
+            };
+            let mut replenish = HashMap::new();
+            for k in labels_map.iter() {
+                if let None = item.const_values.as_ref().unwrap().get(k) {
+                    replenish.insert(k.to_owned(), "unset".to_string());
+                }
+            }
+            item.const_values.as_mut().unwrap().extend(replenish);
         }
         util::lookup_interface(lookup_iface)?;
 
         Ok(())
+    }
+
+    pub fn const_labels(&self) -> Vec<String> {
+        match &self.const_labels {
+            Some(v) => v.clone(),
+            None => vec![],
+        }
     }
 }
 
@@ -95,7 +141,8 @@ pub struct ConfigItem {
     pub cidrs: OptionVec<String>,
     pub in_iface: OptionVec<String>,
     pub out_iface: OptionVec<String>,
-    pub label_values: Option<HashMap<String, String>>,
+    #[serde(rename(deserialize = "constValues"))]
+    pub const_values: Option<HashMap<String, String>>,
 }
 
 impl ConfigItem {
@@ -121,26 +168,31 @@ mod test {
     #[test]
     fn test_load_config() {
         let config_str = r#"
-trafficConfig:
+constLabels:
+    - name
+    - age
+rules:
   - name: first
     protocol: tcp
     # check ok
     cidrs:
       - "1.0.0.0/24"
       - "2.3.0.0/16"
+    constValues:
+      name: l3
+      age: l2
+      address: 1
     # check
     in_ports:
       - 8080
       - 7070
     in_iface: [lo]
     out_iface: [lo]
-    label_values:
-      hello: world
 "#;
 
         let reader = Cursor::new(config_str);
         let result = Traffic::load_config(reader);
-
-        assert!(result.is_ok())
+        println!("{:#?}", result.unwrap());
+        //assert!(result.is_ok())
     }
 }

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, sync::Arc};
 
 use sniff_common::Flow;
 
@@ -14,7 +14,7 @@ pub struct Filter {
     pub in_port_filter: HashSet<u16>,
     pub in_iface_filter: HashSet<String>,
     pub out_iface_filter: HashSet<String>,
-    pub label_values: HashMap<String, String>,
+    pub label_values: Arc<HashMap<String, String>>,
 }
 
 impl From<ConfigItem> for Filter {
@@ -37,10 +37,10 @@ impl From<ConfigItem> for Filter {
             HashSet::new()
         };
 
-        let label_values = if let Some(lv) = value.label_values {
-            lv
+        let label_values = if let Some(lv) = value.const_values {
+            Arc::new(lv)
         } else {
-            HashMap::new()
+            Arc::new(HashMap::new())
         };
 
         Self {

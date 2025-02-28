@@ -1,6 +1,9 @@
 use std::{
     collections::HashMap,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 
@@ -22,12 +25,14 @@ pub struct CollectorMap {
 
 struct PacketCollector {
     data_total: AtomicU64,
+    label_values: Option<Arc<HashMap<String, String>>>,
 }
 
 impl PacketCollector {
-    pub fn new() -> Self {
+    pub fn new(label_values: Option<Arc<HashMap<String, String>>>) -> Self {
         Self {
             data_total: AtomicU64::new(0),
+            label_values,
         }
     }
 
@@ -54,8 +59,9 @@ impl CollectorMap {
         }
     }
 
-    pub fn insert(&mut self, name: String) {
-        self.packet_data.insert(name, PacketCollector::new());
+    pub fn insert(&mut self, name: String, label_values: Option<Arc<HashMap<String, String>>>) {
+        self.packet_data
+            .insert(name, PacketCollector::new(label_values));
     }
 
     pub fn add(&self, name: &String, data_tol: u16) {
@@ -71,16 +77,22 @@ impl CollectorMap {
             tick.tick().await;
 
             self.packet_data.iter().for_each(|(identity_line, item)| {
-                let meta_kvs = identity_to_label_values(&identity_line);
-                metrics::set_gauge(item.get() as i64, &meta_kvs);
+                let mut meta_kvs = identity_to_label_values(&identity_line);
+                let metadata = if let Some(metadata) = &item.label_values {
+                    serde_json::to_string(&**metadata).unwrap()
+                } else {
+                    String::from("unset")
+                };
+                meta_kvs.insert("metadata", &metadata);
 
+                metrics::set_gauge(item.get() as i64, &meta_kvs);
                 item.clear();
             });
         }
     }
 }
 
-pub fn identity_to_label_values<'a>(identity_line: &'a String) -> HashMap<&'a str,&'a str>{
+pub fn identity_to_label_values<'a>(identity_line: &'a String) -> HashMap<&'a str, &'a str> {
     let values: Vec<&str> = identity_line.split("_").collect();
     let mut result = HashMap::with_capacity(metrics::PACKET_TOL_LV_CAP);
 
@@ -93,9 +105,9 @@ pub fn identity_to_label_values<'a>(identity_line: &'a String) -> HashMap<&'a st
     result
 }
 
-/// Converts a [NetworkPacket] to an Identity unique identifier. 
-/// 
-/// This function is mainly used to find its [PacketCollector] in [Collector]. 
+/// Converts a [NetworkPacket] to an Identity unique identifier.
+///
+/// This function is mainly used to find its [PacketCollector] in [Collector].
 /// For more information, see [filter_to_identity]
 pub fn netpkt_to_identity(
     rule_name: &String,
@@ -131,9 +143,9 @@ pub fn netpkt_to_identity(
 
 /// Convert filter to Identity string identifier.
 /// `rule_name`` is unique, so we can combine rule_name with traffic direction, protocol, port, etc. to form a unique identifier.
-/// 
+///
 /// The unique identifier can offload a lot of metadata to find its associated [PacketCollector] in [Collector]
-/// 
+///
 /// * format it follows is: `<rule_name>_<flow>_<protocol>_<iface>_<port>`
 /// * final effect demo is as follows: `demo1_ingress_tcp_enp1s0_undefine`
 pub fn filter_to_identity(filter: &Filter) -> Vec<String> {

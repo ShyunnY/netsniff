@@ -7,57 +7,59 @@ use axum::{
     response::{IntoResponse, Response},
     routing, Router,
 };
-use log::info;
+use log::{error, info};
 use prometheus::{IntGaugeVec, Opts, TextEncoder};
 use tokio::net::TcpListener;
 
-static mut PACKET_TOL: Option<HashMap<String, Box<IntGaugeVec>>> = None;
+static mut PACKET_TOL: Option<Box<IntGaugeVec>> = None;
 
 pub const PACKET_TOL_LV_CAP: usize = 5;
 
 #[allow(static_mut_refs)]
-pub fn build_metrics(name: &String, label_values: &HashMap<String, String>) -> Result<()> {
-    let m = unsafe {
-        if PACKET_TOL.is_none() {
-            PACKET_TOL = Some(HashMap::new());
-        }
-
-        PACKET_TOL.as_mut().unwrap()
-    };
+pub fn build_metrics(const_lables: Vec<String>) -> Result<()> {
+    let mut lable_names = vec![
+        "rule_name",
+        "traffic",
+        "protocol",
+        "network_iface",
+        "port",
+        "metadata",
+    ];
+    const_lables.iter().for_each(|v| {
+        lable_names.push(v);
+    });
 
     let gauge = Box::new(IntGaugeVec::new(
         Opts::new(
             "network_packet_tolal",
             "record the size of incoming and outgoing network packets",
-        )
-        .const_labels(label_values.clone()),
-        &["rule_name", "traffic", "protocol", "network_iface", "port"],
+        ),
+        &lable_names,
     )?);
-    prometheus::register(gauge.clone())?;
-    m.insert(name.to_owned(), gauge);
-    info!("success to build '{}' metrics", name);
 
+    prometheus::register(gauge.clone())?;
+    unsafe {
+        PACKET_TOL = Some(gauge);
+    };
+    info!(r"success to build metrics instance: 'network_packet_tolal'");
     Ok(())
 }
 
 #[allow(static_mut_refs)]
 pub fn set_gauge(val: i64, label_values: &HashMap<&str, &str>) {
-    let metrics_map = unsafe {
+    let gauge = unsafe {
         if PACKET_TOL.is_none() {
+            error!("network_packet_tolal metrics have not been initialized");
             return;
         }
 
         PACKET_TOL.as_ref().unwrap()
     };
-
-    let name = label_values.get("rule_name").unwrap().to_string();
-    if let Some(gauge) = metrics_map.get(&name) {
-        gauge.with(&label_values).set(val);
-    }
+    gauge.with(&label_values).set(val);
 }
 
 /// Sniff's metrics server has the following two functions:
-/// 
+///
 /// 1. Provide a health check endpoint to report that the service is normal(`/-/health`)
 /// 2. Provide a metrics capture endpoint(`/metrics`)
 pub async fn metrics_server() {
