@@ -22,7 +22,7 @@ serde = { version = "1.0.217", features = ["derive"] }
 prometheus = { workspace = true }
 serde_yaml = "0.9.34"
 lazy_static = "1.5.0"
-timer = "0.2.0"
+axum = { workspace = true, features = ["http1", "tokio"] }
 
 [build-dependencies]
 anyhow = { workspace = true }

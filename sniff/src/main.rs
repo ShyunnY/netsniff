@@ -63,7 +63,7 @@ async fn main() -> anyhow::Result<()> {
                             }
 
                             for identity in collector::filter_to_identity(&filter_item) {
-                                println!("{}",identity);
+                                info!("build metrics identity: [{}]",identity);
                                 collector_map.insert(identity);
                             }
 

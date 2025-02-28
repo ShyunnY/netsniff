@@ -66,7 +66,7 @@ impl CollectorMap {
 
     pub async fn flush(&self) {
         // TODO: interval should be configurable
-        let mut tick = tokio::time::interval(Duration::from_secs(3));
+        let mut tick = tokio::time::interval(Duration::from_secs(1));
         loop {
             tick.tick().await;
 

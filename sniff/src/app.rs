@@ -9,12 +9,7 @@ use sniff_common::Flow;
 use tokio::sync::mpsc;
 
 use crate::{
-    cidr::PrefixTree,
-    collector::{self, CollectorMap},
-    ebpf,
-    filter::Filter,
-    network::NetworkPacket,
-    util,
+    cidr::PrefixTree, collector::{self, CollectorMap}, ebpf, filter::Filter, metrics, network::NetworkPacket, util
 };
 
 pub struct Application {
@@ -89,7 +84,7 @@ impl Application {
             }
         }
 
-        self.startup_exporter().await;
+        self.startup_collector().await;
         loop {
             if let Some(net_pkt) = self.rx.recv().await {
                 let addr = match net_pkt.flow {
@@ -114,7 +109,7 @@ impl Application {
             if exit {
                 let (ok, _) = filter.filter(net_pkt);
                 if ok {
-                    self.record_exporter(&filter.rule_name(), net_pkt, filter.enable_port())
+                    self.record_collector(&filter.rule_name(), net_pkt, filter.enable_port())
                         .await;
                     self.log_packet(&net_pkt);
                 }
@@ -143,19 +138,25 @@ impl Application {
         }
     }
 
-    /// record packet information to exporter, if set
-    async fn record_exporter(&self, rule_name: &String, net_pkt: &NetworkPacket, enable_port: bool) {
-        if let Some(exporter) = &self.collector {
+    /// record packet information to collector, if set
+    async fn record_collector(&self, rule_name: &String, net_pkt: &NetworkPacket, enable_port: bool) {
+        if let Some(collector) = &self.collector {
             let identity = collector::netpkt_to_identity(rule_name, enable_port, &net_pkt);
-            exporter.add(&identity, net_pkt.pkt.length);
+            collector.add(&identity, net_pkt.pkt.length);
         }
     }
 
-    async fn startup_exporter(&mut self) {
-        if let Some(exporter) = &self.collector {
-            let clone = exporter.clone();
+    /// Start the collector, which will periodically flush network packets to metrics.
+    /// 
+    /// At the same time, starting the collector means starting a metrics server to help the program expose metrics
+    async fn startup_collector(&mut self) {
+        if let Some(collector) = &self.collector {
+            let clone = collector.clone();
             tokio::spawn(async move {
                 clone.flush().await;
+            });
+            tokio::spawn(async{
+                metrics::metrics_server().await;
             });
         }
     }
