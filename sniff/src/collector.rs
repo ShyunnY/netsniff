@@ -19,10 +19,12 @@ use crate::{
 type DataMap = HashMap<String, PacketCollector>;
 
 /// Collects the network packet size for each rule
+#[derive(Debug)]
 pub struct CollectorMap {
     packet_data: DataMap,
 }
 
+#[derive(Debug)]
 struct PacketCollector {
     data_total: AtomicU64,
     label_values: Option<Arc<HashMap<String, String>>>,
@@ -78,12 +80,11 @@ impl CollectorMap {
 
             self.packet_data.iter().for_each(|(identity_line, item)| {
                 let mut meta_kvs = identity_to_label_values(&identity_line);
-                let metadata = if let Some(metadata) = &item.label_values {
-                    serde_json::to_string(&**metadata).unwrap()
-                } else {
-                    String::from("unset")
+                if let Some(label_values) = &item.label_values {
+                    label_values.iter().for_each(|(k, v)| {
+                        meta_kvs.insert(k.as_str(), v.as_str());
+                    });
                 };
-                meta_kvs.insert("metadata", &metadata);
 
                 metrics::set_gauge(item.get() as i64, &meta_kvs);
                 item.clear();

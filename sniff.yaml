@@ -1,20 +1,29 @@
-trafficConfig:
-    - name: demo1
-      protocol: tcp
-      cidrs: ["123.125.107.0/24"]
-      ports: []
-      in_iface: [enp1s0]
-      out_iface: [enp1s0]
-      label_values:
-          hello: world
-    # - name: demo2
-    #   protocol: udp
-    #   cidrs: ["123.125.0.0/24"]
-    #   ports: [8080]
-    #   in_iface: [enp1s0]
-    #   out_iface: ["lo"]
-    #   label_values:
-    #       hello: world
+constLabels: ["name", "age"]
+rules:
+  - name: demo1
+    protocol: tcp
+    cidrs: ["123.125.107.0/24"]
+    inPorts: []
+    inIface: [enp1s0]
+    outIface: [enp1s0]
+    constValues:
+      name: z3
+  - name: demo2
+    protocol: udp
+    cidrs: ["1.1.1.0/24"]
+    inPorts: []
+    inIface: []
+    outIface: [enp1s0]
+    constValues:
+      age: 20
+  # - name: demo2
+  #   protocol: udp
+  #   cidrs: ["123.125.0.0/24"]
+  #   ports: [8080]
+  #   in_iface: [enp1s0]
+  #   out_iface: ["lo"]
+  #   label_values:
+  #       hello: world
 # 规则是一个矩阵式的 metrics
 # 例如:
 # {protocol=tcp,port=80,in_iface=enp1s0}

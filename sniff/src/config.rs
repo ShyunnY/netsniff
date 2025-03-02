@@ -139,8 +139,13 @@ pub struct ConfigItem {
     pub protocol: network::Proto,
     pub in_ports: OptionVec<u16>,
     pub cidrs: OptionVec<String>,
+
+    #[serde(rename(deserialize = "inIface"))]
     pub in_iface: OptionVec<String>,
+
+    #[serde(rename(deserialize = "outIface"))]
     pub out_iface: OptionVec<String>,
+
     #[serde(rename(deserialize = "constValues"))]
     pub const_values: Option<HashMap<String, String>>,
 }

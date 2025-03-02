@@ -40,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
                         error!("failed to build metrics by err {}", e);
                     }
 
-                    if let Some(c) = config.rules {
+                    if let Some(rule) = config.rules {
                         let mut trie = PrefixTree::<Arc<Box<Filter>>>::new();
                         let mut ifaces: HashSet<String> = HashSet::new();
                         let mut flow = 0x3;
@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
                         let mut empty_filter: Vec<Arc<Box<Filter>>> = Vec::new();
                         let mut collector_map = CollectorMap::new();
                         
-                        for item in c {
+                        for item in rule {
                             proto &= item.protocol as i32;
                             flow &= item.bind_flow() as i32;
 

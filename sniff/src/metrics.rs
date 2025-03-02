@@ -23,7 +23,6 @@ pub fn build_metrics(const_lables: Vec<String>) -> Result<()> {
         "protocol",
         "network_iface",
         "port",
-        "metadata",
     ];
     const_lables.iter().for_each(|v| {
         lable_names.push(v);
