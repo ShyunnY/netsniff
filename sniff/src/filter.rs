@@ -1,4 +1,7 @@
-use std::{collections::{HashMap, HashSet}, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use sniff_common::Flow;
 
@@ -53,7 +56,6 @@ impl From<ConfigItem> for Filter {
         }
     }
 }
-
 
 impl Filter {
     pub fn filter(&self, pkt: &NetworkPacket) -> (bool, Option<&HashMap<String, String>>) {

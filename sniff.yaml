@@ -1,4 +1,5 @@
 constLabels: ["name", "age"]
+exportInterval: 10s
 rules:
   - name: demo1
     protocol: tcp
@@ -9,7 +10,7 @@ rules:
     constValues:
       name: z3
   - name: demo2
-    protocol: udp
+    protocol: tcp
     cidrs: ["1.1.1.0/24"]
     inPorts: []
     inIface: []
@@ -24,8 +25,3 @@ rules:
   #   out_iface: ["lo"]
   #   label_values:
   #       hello: world
-# 规则是一个矩阵式的 metrics
-# 例如:
-# {protocol=tcp,port=80,in_iface=enp1s0}
-# {protocol=tcp,port=80,out_iface=enp1s0}
-# iden = demo1_enp1s0_tcp_80

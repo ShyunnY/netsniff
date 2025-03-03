@@ -17,13 +17,7 @@ pub const PACKET_TOL_LV_CAP: usize = 5;
 
 #[allow(static_mut_refs)]
 pub fn build_metrics(const_lables: Vec<String>) -> Result<()> {
-    let mut lable_names = vec![
-        "rule_name",
-        "traffic",
-        "protocol",
-        "network_iface",
-        "port",
-    ];
+    let mut lable_names = vec!["rule_name", "traffic", "protocol", "network_iface", "port"];
     const_lables.iter().for_each(|v| {
         lable_names.push(v);
     });

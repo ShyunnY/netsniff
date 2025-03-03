@@ -14,8 +14,15 @@ use crate::{network, util};
 
 #[derive(Debug, Deserialize)]
 pub struct Traffic {
+    #[serde(
+        rename(deserialize = "exportInterval"),
+        default = "default_export_interval"
+    )]
+    pub export_interval: String,
+
     #[serde(rename(deserialize = "constLabels"))]
     pub const_labels: Option<Vec<String>>,
+
     #[serde(rename(deserialize = "rules"))]
     pub rules: Option<Vec<ConfigItem>>,
 }
@@ -130,14 +137,22 @@ impl Traffic {
     }
 }
 
+// By default, the collector is flushed every 30 seconds.
+fn default_export_interval() -> String {
+    String::from("30s")
+}
+
 type OptionVec<T> = Option<Vec<T>>;
 
 #[derive(Debug, Deserialize)]
 pub struct ConfigItem {
     pub name: String,
+
     #[serde(default)]
     pub protocol: network::Proto,
+
     pub in_ports: OptionVec<u16>,
+
     pub cidrs: OptionVec<String>,
 
     #[serde(rename(deserialize = "inIface"))]
@@ -186,7 +201,6 @@ rules:
     constValues:
       name: l3
       age: l2
-      address: 1
     # check
     in_ports:
       - 8080
@@ -197,7 +211,6 @@ rules:
 
         let reader = Cursor::new(config_str);
         let result = Traffic::load_config(reader);
-        println!("{:#?}", result.unwrap());
-        //assert!(result.is_ok())
+        assert!(result.is_ok())
     }
 }

@@ -4,12 +4,18 @@ use std::{
 };
 
 use colored::Colorize;
-use log::info;
+use log::{info, trace};
 use sniff_common::Flow;
 use tokio::sync::mpsc;
 
 use crate::{
-    cidr::PrefixTree, collector::{self, CollectorMap}, ebpf, filter::Filter, metrics, network::NetworkPacket, util
+    cidr::PrefixTree,
+    collector::{self, CollectorMap},
+    ebpf,
+    filter::Filter,
+    metrics,
+    network::NetworkPacket,
+    util,
 };
 
 pub struct Application {
@@ -134,12 +140,17 @@ impl Application {
                 Flow::Egress => pkt_line.bright_yellow(),
                 _ => return,
             };
-            println!("{output}");
+            trace!("{output}");
         }
     }
 
     /// record packet information to collector, if set
-    async fn record_collector(&self, rule_name: &String, net_pkt: &NetworkPacket, enable_port: bool) {
+    async fn record_collector(
+        &self,
+        rule_name: &String,
+        net_pkt: &NetworkPacket,
+        enable_port: bool,
+    ) {
         if let Some(collector) = &self.collector {
             let identity = collector::netpkt_to_identity(rule_name, enable_port, &net_pkt);
             collector.add(&identity, net_pkt.pkt.length);
@@ -147,7 +158,7 @@ impl Application {
     }
 
     /// Start the collector, which will periodically flush network packets to metrics.
-    /// 
+    ///
     /// At the same time, starting the collector means starting a metrics server to help the program expose metrics
     async fn startup_collector(&mut self) {
         if let Some(collector) = &self.collector {
@@ -155,7 +166,7 @@ impl Application {
             tokio::spawn(async move {
                 clone.flush().await;
             });
-            tokio::spawn(async{
+            tokio::spawn(async {
                 metrics::metrics_server().await;
             });
         }

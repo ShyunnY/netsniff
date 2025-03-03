@@ -1,6 +1,7 @@
 use std::{fmt::Debug, net::Ipv4Addr, sync::Arc};
 
 use ipnetwork::{IpNetwork, Ipv4Network};
+use log::debug;
 
 #[derive(Debug)]
 struct Node<N> {
@@ -126,7 +127,11 @@ where
     fn dfs(&self, node: &Node<N>, path: &mut Vec<u8>) {
         if node.is_last {
             // todo: generic N requires 'Display' trait bound?
-            println!("{} => {:?}", binary_to_cidr(&path).to_string(), node.metadata);
+            debug!(
+                "{} => {:?}",
+                binary_to_cidr(&path).to_string(),
+                node.metadata
+            );
         }
 
         if let Some(left) = node.left.as_ref() {

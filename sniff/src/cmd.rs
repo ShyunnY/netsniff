@@ -9,7 +9,7 @@ pub struct Cmd {
         default_value = "info",
         value_name = "verbose",
         global = true,
-        value_parser = ["debug","info","warn","error"]
+        value_parser = ["trace","debug","info","warn","error"]
     )]
     pub verbose: String,
 

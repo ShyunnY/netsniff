@@ -35,10 +35,11 @@ async fn main() -> anyhow::Result<()> {
                 Ok(mut config) => {
                     config.check()?;
 
-                    // init metrics
+                    // build metrics for data package export
                     if let Err(e) = metrics::build_metrics(config.const_labels()) {
                         error!("failed to build metrics by err {}", e);
                     }
+                    let export_internal = humantime::parse_duration(&config.export_interval)?;
 
                     if let Some(rule) = config.rules {
                         let mut trie = PrefixTree::<Arc<Box<Filter>>>::new();
@@ -46,8 +47,8 @@ async fn main() -> anyhow::Result<()> {
                         let mut flow = 0x3;
                         let mut proto: i32 = 0x3;
                         let mut empty_filter: Vec<Arc<Box<Filter>>> = Vec::new();
-                        let mut collector_map = CollectorMap::new();
-                        
+                        let mut collector_map = CollectorMap::new(export_internal);
+
                         for item in rule {
                             proto &= item.protocol as i32;
                             flow &= item.bind_flow() as i32;

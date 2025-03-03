@@ -7,6 +7,7 @@ use std::{
     time::Duration,
 };
 
+use log::debug;
 use network_types::ip::IpProto;
 use sniff_common::Flow;
 
@@ -21,6 +22,7 @@ type DataMap = HashMap<String, PacketCollector>;
 /// Collects the network packet size for each rule
 #[derive(Debug)]
 pub struct CollectorMap {
+    export_interval: Duration,
     packet_data: DataMap,
 }
 
@@ -55,8 +57,9 @@ impl PacketCollector {
 }
 
 impl CollectorMap {
-    pub fn new() -> Self {
+    pub fn new(internal: Duration) -> Self {
         Self {
+            export_interval: internal,
             packet_data: HashMap::new(),
         }
     }
@@ -73,10 +76,10 @@ impl CollectorMap {
     }
 
     pub async fn flush(&self) {
-        // TODO: interval should be configurable
-        let mut tick = tokio::time::interval(Duration::from_secs(1));
+        let mut tick = tokio::time::interval(self.export_interval);
         loop {
             tick.tick().await;
+            debug!("trigger collector flush to metrics cycle");
 
             self.packet_data.iter().for_each(|(identity_line, item)| {
                 let mut meta_kvs = identity_to_label_values(&identity_line);
