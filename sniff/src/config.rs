@@ -103,7 +103,7 @@ impl Traffic {
                         || (labels_map.is_empty() && !values_map.is_empty())
                     {
                         return Err(anyhow!(
-                            "label={} in the {} rule does not match that in constLabels or constLabels is empty",
+                            "label={} in the '{}' rule does not match that in constLabels or constLabels is empty",
                             k,
                             item.name
                         ));

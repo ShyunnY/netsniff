@@ -1,5 +1,5 @@
 [package]
-name = "sniff"
+name = "netsniff"
 version = "0.1.0"
 edition = "2021"
 
@@ -30,5 +30,5 @@ aya-build = { workspace = true }
 sniff-ebpf = { path = "../sniff-ebpf" }
 
 [[bin]]
-name = "sniff"
+name = "netsniff"
 path = "src/main.rs"

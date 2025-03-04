@@ -3,7 +3,7 @@ use std::{collections::HashSet, str::FromStr, sync::Arc};
 use clap::Parser;
 use ipnetwork::Ipv4Network;
 use log::{error, info};
-use sniff::{
+use netsniff::{
     app::Application,
     cidr::PrefixTree,
     cmd::{self, Cmd},

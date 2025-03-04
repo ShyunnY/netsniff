@@ -13,7 +13,7 @@ aya-log-ebpf = { workspace = true }
 which = { workspace = true }
 
 [[bin]]
-name = "sniff"
+name = "netsniff"
 path = "src/main.rs"
 
 [profile.dev]
