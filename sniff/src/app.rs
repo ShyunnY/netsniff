@@ -128,6 +128,8 @@ impl Application {
                     break;
                 }
             }
+        } else if self.trie.match_all() {
+            self.log_packet(&net_pkt);
         }
     }
 

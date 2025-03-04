@@ -105,14 +105,14 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        _ => {
+        cmd::SubCmd::Tcp | cmd::SubCmd::Udp | cmd::SubCmd::All => {
             // TODO: handler empty filter case
             info!("read configuration from a command flag");
             let ifaces = get_cmd_ifaces(&command);
             let proto = command.sub_cmd.proto_num();
             let trie = if command.cidrs.len() != 0 {
                 let mut trie = PrefixTree::new();
-                let empty_filter = Arc::new(Box::new(Filter::default()));
+                let empty_filter = Arc::new(Box::new(Filter::default_pass_filter()));
                 for cidr in command.cidrs.iter() {
                     match ipnetwork::Ipv4Network::from_str(cidr) {
                         Ok(addr) => {
@@ -124,9 +124,13 @@ async fn main() -> anyhow::Result<()> {
                         }
                     };
                 }
+
                 trie
             } else {
-                PrefixTree::<Arc<Box<Filter>>>::new()
+                let mut trie = PrefixTree::<Arc<Box<Filter>>>::new();
+                trie.set_match_all();
+
+                trie
             };
 
             let flow = match command.flow {

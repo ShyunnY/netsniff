@@ -18,6 +18,8 @@ pub struct Filter {
     pub in_iface_filter: HashSet<String>,
     pub out_iface_filter: HashSet<String>,
     pub label_values: Arc<HashMap<String, String>>,
+
+    pass: bool,
 }
 
 impl From<ConfigItem> for Filter {
@@ -53,12 +55,16 @@ impl From<ConfigItem> for Filter {
             in_iface_filter,
             out_iface_filter,
             label_values,
+            pass: false,
         }
     }
 }
 
 impl Filter {
     pub fn filter(&self, pkt: &NetworkPacket) -> (bool, Option<&HashMap<String, String>>) {
+        if self.pass {
+            return (true, None);
+        }
         if !self.match_iface(&pkt.iface, &pkt.flow) {
             return (false, None);
         }
@@ -107,5 +113,12 @@ impl Filter {
 
     pub fn enable_port(&self) -> bool {
         self.in_port_filter.len() != 0
+    }
+
+    pub fn default_pass_filter() -> Filter {
+        let mut filter = Self::default();
+        filter.pass = true;
+
+        filter
     }
 }

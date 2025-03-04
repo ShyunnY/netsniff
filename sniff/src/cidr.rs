@@ -31,6 +31,7 @@ impl<N> Node<N> {
 
 #[derive(Debug)]
 pub struct PrefixTree<N> {
+    match_all: bool,
     root: Option<Box<Node<N>>>,
 }
 
@@ -43,12 +44,21 @@ where
 
     pub fn new() -> Self {
         PrefixTree {
+            match_all: false,
             root: Some(Box::new(Node::default())),
         }
     }
 
     pub fn empty(&self) -> bool {
         self.root.is_none() || self.root.as_ref().unwrap().empty()
+    }
+
+    pub fn set_match_all(&mut self){
+        self.match_all = true
+    }
+
+    pub fn match_all(&self) -> bool{
+        self.match_all
     }
 
     pub fn insert(&mut self, addr: ipnetwork::Ipv4Network, metadata: N) {
@@ -112,7 +122,7 @@ where
         if let Some(node) = assume_last {
             (node.is_last, node.metadata.clone())
         } else {
-            (false, Arc::new(N::default()))
+            (self.match_all, Arc::new(N::default()))
         }
     }
 
@@ -235,6 +245,30 @@ mod test {
         assert_eq!(
             trie.search(IpAddr::from_str("2.0.0.168").unwrap()),
             (true, Arc::new(104))
+        );
+    }
+
+    #[test]
+    fn test_match_all_prefix_trie() {
+        let no_match_trie = PrefixTree::<()>::new();
+        assert_eq!(
+            no_match_trie.search(IpAddr::from_str("1.0.0.168").unwrap()),
+            (false, Arc::new(()))
+        );
+        assert_eq!(
+            no_match_trie.search(IpAddr::from_str("2.0.0.168").unwrap()),
+            (false, Arc::new(()))
+        );
+
+        let mut match_trie = PrefixTree::<()>::new();
+        match_trie.set_match_all();
+        assert_eq!(
+            match_trie.search(IpAddr::from_str("1.0.0.168").unwrap()),
+            (true, Arc::new(()))
+        );
+        assert_eq!(
+            match_trie.search(IpAddr::from_str("2.0.0.168").unwrap()),
+            (true, Arc::new(()))
         );
     }
 }
