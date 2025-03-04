@@ -4,7 +4,7 @@
 
 ## 介绍
 
-Netsniff 是一个使用 **eBPF** 技术对网络数据包进行嗅探的工具，基于 `aya` 框架进行构建的 `BPF_PROG_TYPE_SCHED_CLS` eBPF 类型项目，并挂载到 `tc` 子系统中。
+Netsniff 是一个使用 **eBPF** 技术对网络数据包进行嗅探的工具，基于 `aya` 框架进行构建的 BPF_PROG_TYPE_SCHED_CLS eBPF 类型项目，并挂载到 `tc` 子系统中。
 
 目前 Netsniff 有两种使用方式:
 1. 作为命令行工具对指定条件的网络数据包进行探测
@@ -30,6 +30,8 @@ Options:
 ```
 
 ## 演示
+
+**内核版本要求 >= 5.8**
 
 使用 server 模式探测 `1.1.1.1` 的 Ingress/Egress 数据包大小和 `8.8.8.8` 的 Egress 数据包大小，并获取其导出的指标信息
 
@@ -173,64 +175,13 @@ rules:
       appName: cf
 ```
 
-> NOTE: Netsniff 内部使用 `prometheus` crate 导出指标。在构建指标时需要确认 label_values, 故配置文件中 constValues 的 label key 需要存在于 constLabels 中。如果未提供将被设置为 `unset`
->
-> * constLabel 的 label key 与 constValues label key 对应:
-> ```shell
-> $ cat config.yaml
-> constLabels:
->   - appName
-> exportInterval: 15s
-> rules:
->   - name: rule1
->     protocol: tcp
->     cidrs: ["1.1.1.0/24"]
->     inPorts: []
->     inIface: [enp1s0]
->     outIface: [enp1s0]
->     constValues:
->       appName: cf
->
-> $ curl localhost:10010/metrics
-> network_packet_tolal{appName="cf",network_iface="enp1s0",port="unsupport",protocol="tcp",rule_name="rule1",traffic="egress"} 392
-> ```
->
-> * constValues 未配置 constLabel 的 label key:
-> ```shell
-> $ cat config.yaml
-> constLabels:
->   - appName
-> exportInterval: 15s
-> rules:
->   - name: rule1
->     protocol: tcp
->     cidrs: ["1.1.1.0/24"]
->     inPorts: []
->     inIface: [enp1s0]
->     outIface: [enp1s0]
->
-> $ curl localhost:10010/metrics
-> network_packet_tolal{appName="unset",network_iface="enp1s0",port="unsupport",protocol="tcp",rule_name="rule1",traffic="egress"} 392
-> ```
->
-> * constValues 存在 constLabel 不存在的 label key:
-> ```shell
-> $ cat config.yaml
-> constLabels:
->   - appName
-> exportInterval: 15s
-> rules:
->   - name: rule1
->     protocol: tcp
->     cidrs: ["1.1.1.0/24"]
->     inPorts: []
->     inIface: [enp1s0]
->     outIface: [enp1s0]
->     constValues: 
->       foo: bar
->
-> $ ./netsniff run config.yaml
-> [2025-03-04T03:51:23Z INFO  netsniff] read configuration from a config file
-> [2025-03-04T03:51:23Z ERROR netsniff] failed to load config 'sniff.yaml' by err label=foo in the rule1 rule does not match that in constLabels or constLabels is empty
-> ```
->
+> NOTE: 
+> Netsniff 在构建指标时需要确认一致性的 label_values, 并遵循以下规则:
+> * `rules.constValues` 的 label key 必须存在于 `constLabels`
+> * `constLabels` 的 label key 可以不存在于 `rules.constValues` 中, 此时将被设置为 `unset`
+
+## 未来期望
+
+* [ ] 更丰富网络数据包指标
+* [ ] 更细粒度的网络数据包匹配规则
+* [ ] 考虑支持更多协议
