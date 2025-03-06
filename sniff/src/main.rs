@@ -64,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
                                 info!("build metrics identity: [{}]", identity);
                                 collector_map.insert(
                                     identity,
-                                    if filter_item.label_values.len() != 0 {
+                                    if !filter_item.label_values.is_empty() {
                                         Some(filter_item.label_values.clone())
                                     } else {
                                         None
@@ -74,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
 
                             let filter: Arc<Box<Filter>> = Arc::new(Box::new(filter_item));
                             match cidrs {
-                                Some(cidrs) if cidrs.len() != 0 => {
+                                Some(cidrs) if !cidrs.is_empty() => {
                                     /* handler non-empty filters */
                                     for cidr in cidrs {
                                         trie.insert(
@@ -110,7 +110,7 @@ async fn main() -> anyhow::Result<()> {
             info!("read configuration from a command flag");
             let ifaces = get_cmd_ifaces(&command);
             let proto = command.sub_cmd.proto_num();
-            let trie = if command.cidrs.len() != 0 {
+            let trie = if !command.cidrs.is_empty() {
                 let mut trie = PrefixTree::new();
                 let empty_filter = Arc::new(Box::new(Filter::default_pass_filter()));
                 for cidr in command.cidrs.iter() {
@@ -165,7 +165,7 @@ fn setup(command: &Cmd) {
 
 fn get_cmd_ifaces(command: &Cmd) -> HashSet<String> {
     let mut ifaces = HashSet::new();
-    if command.ifaces.len() == 0 {
+    if command.ifaces.is_empty() {
         error!("must specify at least one network interface to which Sniff is attached.");
         std::process::exit(1);
     }

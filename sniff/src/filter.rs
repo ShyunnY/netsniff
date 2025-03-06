@@ -112,13 +112,13 @@ impl Filter {
     }
 
     pub fn enable_port(&self) -> bool {
-        self.in_port_filter.len() != 0
+        !self.in_port_filter.is_empty()
     }
 
     pub fn default_pass_filter() -> Filter {
-        let mut filter = Self::default();
-        filter.pass = true;
-
-        filter
+        Self {
+            pass: true,
+            ..Default::default()
+        }
     }
 }

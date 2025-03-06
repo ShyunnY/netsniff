@@ -251,9 +251,8 @@ pub fn check_attach(iface: String, flow: Flow) {
                 "failed to load the {:?} eBPF program(TC) RingBuf by error: {}",
                 attach_type, e
             );
-            return;
         }
-    };
+    }
 }
 
 #[inline]

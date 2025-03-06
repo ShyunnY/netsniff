@@ -35,6 +35,15 @@ pub struct PrefixTree<N> {
     root: Option<Box<Node<N>>>,
 }
 
+impl<N> Default for PrefixTree<N>
+where
+    N: Default + Clone + Debug,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<N> PrefixTree<N>
 where
     N: Default + Clone + Debug,
@@ -53,11 +62,11 @@ where
         self.root.is_none() || self.root.as_ref().unwrap().empty()
     }
 
-    pub fn set_match_all(&mut self){
+    pub fn set_match_all(&mut self) {
         self.match_all = true
     }
 
-    pub fn match_all(&self) -> bool{
+    pub fn match_all(&self) -> bool {
         self.match_all
     }
 
@@ -139,7 +148,7 @@ where
             // todo: generic N requires 'Display' trait bound?
             debug!(
                 "{} => {:?}",
-                binary_to_cidr(&path).to_string(),
+                binary_to_cidr(path).to_string(),
                 node.metadata
             );
         }
@@ -207,7 +216,7 @@ fn binary_to_cidr(bin: &[u8]) -> Ipv4Network {
             let index = 8 - i - 1;
             decimal += (cidr_vec[interval * 8 + i] & 0xf) << index;
         }
-        cidr[interval] = decimal as u8;
+        cidr[interval] = decimal;
     }
     cidr[4] = mask;
 

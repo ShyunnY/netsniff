@@ -38,11 +38,7 @@ impl Application {
         collector: Option<CollectorMap>,
     ) -> Self {
         let (tx, rx) = mpsc::channel(4096 * 4096);
-        let collector = if let Some(exp) = collector {
-            Some(Arc::new(exp))
-        } else {
-            None
-        };
+        let collector = collector.map(Arc::new);
 
         Self {
             ifaces,
@@ -117,26 +113,26 @@ impl Application {
                 if ok {
                     self.record_collector(&filter.rule_name(), net_pkt, filter.enable_port())
                         .await;
-                    self.log_packet(&net_pkt);
+                    self.log_packet(net_pkt);
                 }
             }
         } else if let Some(empty_filter) = &self.empty_filter {
             for filter in empty_filter {
-                let (ok, _) = filter.filter(&net_pkt);
+                let (ok, _) = filter.filter(net_pkt);
                 if ok {
-                    self.log_packet(&net_pkt);
+                    self.log_packet(net_pkt);
                     break;
                 }
             }
         } else if self.trie.match_all() {
-            self.log_packet(&net_pkt);
+            self.log_packet(net_pkt);
         }
     }
 
     /// Output logs in different colors according to traffic direction
     fn log_packet(&self, net_pkt: &NetworkPacket) {
         if log::log_enabled!(log::Level::Debug) {
-            let pkt_line = String::from(format!("{}", net_pkt));
+            let pkt_line = format!("{}", net_pkt);
             let output = match net_pkt.flow {
                 Flow::Ingress => pkt_line.bright_green(),
                 Flow::Egress => pkt_line.bright_yellow(),
@@ -154,7 +150,7 @@ impl Application {
         enable_port: bool,
     ) {
         if let Some(collector) = &self.collector {
-            let identity = collector::netpkt_to_identity(rule_name, enable_port, &net_pkt);
+            let identity = collector::netpkt_to_identity(rule_name, enable_port, net_pkt);
             collector.add(&identity, net_pkt.pkt.length);
         }
     }

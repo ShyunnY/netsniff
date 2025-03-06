@@ -98,7 +98,7 @@ impl Traffic {
             // + Does not exist in constLabel but exists in constValues, in this case we panic
             // + Part of constValues ​​exists, in this case we add unset to values
             if let Some(values_map) = &item.const_values {
-                for (k, _) in values_map {
+                for k in values_map.keys() {
                     if (!labels_map.is_empty() && !labels_map.contains(k))
                         || (labels_map.is_empty() && !values_map.is_empty())
                     {
@@ -118,7 +118,7 @@ impl Traffic {
             };
             let mut replenish = HashMap::new();
             for k in labels_map.iter() {
-                if let None = item.const_values.as_ref().unwrap().get(k) {
+                if item.const_values.as_ref().unwrap().get(k).is_none() {
                     replenish.insert(k.to_owned(), "unset".to_string());
                 }
             }

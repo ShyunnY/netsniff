@@ -45,7 +45,7 @@ impl From<[u8; RawPacket::LEN]> for Packet {
             }
             ProtoHdr::Udp(udp_hdr) => {
                 let source = u16::from_be(udp_hdr.source);
-                let dst = u16::from(udp_hdr.dest);
+                let dst = udp_hdr.dest;
                 Self {
                     src_ip,
                     dst_ip,

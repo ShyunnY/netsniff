@@ -48,7 +48,7 @@ pub fn set_gauge(val: i64, label_values: &HashMap<&str, &str>) {
 
         PACKET_TOL.as_ref().unwrap()
     };
-    gauge.with(&label_values).set(val);
+    gauge.with(label_values).set(val);
 }
 
 /// Sniff's metrics server has the following two functions:

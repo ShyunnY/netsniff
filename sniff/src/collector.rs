@@ -82,7 +82,7 @@ impl CollectorMap {
             debug!("trigger collector flush to metrics cycle");
 
             self.packet_data.iter().for_each(|(identity_line, item)| {
-                let mut meta_kvs = identity_to_label_values(&identity_line);
+                let mut meta_kvs = identity_to_label_values(identity_line);
                 if let Some(label_values) = &item.label_values {
                     label_values.iter().for_each(|(k, v)| {
                         meta_kvs.insert(k.as_str(), v.as_str());
@@ -96,7 +96,7 @@ impl CollectorMap {
     }
 }
 
-pub fn identity_to_label_values<'a>(identity_line: &'a String) -> HashMap<&'a str, &'a str> {
+pub fn identity_to_label_values(identity_line: &str) -> HashMap<&str, &str> {
     let values: Vec<&str> = identity_line.split("_").collect();
     let mut result = HashMap::with_capacity(metrics::PACKET_TOL_LV_CAP);
 
@@ -162,7 +162,7 @@ pub fn filter_to_identity(filter: &Filter) -> Vec<String> {
     };
 
     for iface in &filter.in_iface_filter {
-        if filter.in_port_filter.len() > 0 {
+        if !filter.in_port_filter.is_empty() {
             for port in &filter.in_port_filter {
                 for proto in &must_proto {
                     identitys.push(format!(
