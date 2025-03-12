@@ -42,9 +42,11 @@ impl PacketCollector {
 
     pub fn set(&self, data_tol: u16) {
         // "Acquire" is used here to avoid reordering subsequent operations.
-        let val = self.data_total.load(Ordering::Acquire);
         self.data_total
-            .store(val + (data_tol as u64), Ordering::Relaxed);
+            .fetch_update(Ordering::Relaxed, Ordering::Acquire, |x| {
+                Some(x.wrapping_add(data_tol as u64))
+            })
+            .unwrap();
     }
 
     pub fn clear(&self) {
@@ -76,6 +78,7 @@ impl CollectorMap {
     }
 
     pub async fn flush(&self) {
+        println!("1111111111=>");
         let mut tick = tokio::time::interval(self.export_interval);
         loop {
             tick.tick().await;
@@ -89,9 +92,10 @@ impl CollectorMap {
                     });
                 };
 
-                metrics::set_gauge(item.get() as i64, &meta_kvs);
+                metrics::set_counter(item.get(), &meta_kvs);
                 item.clear();
             });
+            metrics::flush_file("network_packet_metrics.txt").await;
         }
     }
 }

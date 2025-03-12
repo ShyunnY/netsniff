@@ -13,7 +13,6 @@ use crate::{
     collector::{self, CollectorMap},
     ebpf,
     filter::Filter,
-    metrics,
     network::NetworkPacket,
     util,
 };
@@ -163,9 +162,6 @@ impl Application {
             let clone = collector.clone();
             tokio::spawn(async move {
                 clone.flush().await;
-            });
-            tokio::spawn(async {
-                metrics::metrics_server().await;
             });
         }
     }

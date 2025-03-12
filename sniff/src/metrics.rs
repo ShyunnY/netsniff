@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 
 use anyhow::Result;
 use axum::{
@@ -8,10 +8,14 @@ use axum::{
     routing, Router,
 };
 use log::{error, info};
-use prometheus::{IntGaugeVec, Opts, TextEncoder};
-use tokio::net::TcpListener;
+use prometheus::{IntCounterVec, Opts, TextEncoder};
+use tokio::{
+    fs::File,
+    io::{AsyncWriteExt, BufWriter},
+    net::TcpListener,
+};
 
-static mut PACKET_TOL: Option<Box<IntGaugeVec>> = None;
+static mut PACKET_TOL: Option<Box<IntCounterVec>> = None;
 
 pub const PACKET_TOL_LV_CAP: usize = 5;
 
@@ -22,7 +26,7 @@ pub fn build_metrics(const_lables: Vec<String>) -> Result<()> {
         lable_names.push(v);
     });
 
-    let gauge = Box::new(IntGaugeVec::new(
+    let counter = Box::new(IntCounterVec::new(
         Opts::new(
             "network_packet_tolal",
             "record the size of incoming and outgoing network packets",
@@ -30,17 +34,17 @@ pub fn build_metrics(const_lables: Vec<String>) -> Result<()> {
         &lable_names,
     )?);
 
-    prometheus::register(gauge.clone())?;
+    prometheus::register(counter.clone())?;
     unsafe {
-        PACKET_TOL = Some(gauge);
+        PACKET_TOL = Some(counter);
     };
     info!(r"success to build metrics instance: 'network_packet_tolal'");
     Ok(())
 }
 
 #[allow(static_mut_refs)]
-pub fn set_gauge(val: i64, label_values: &HashMap<&str, &str>) {
-    let gauge = unsafe {
+pub fn set_counter(val: u64, label_values: &HashMap<&str, &str>) {
+    let counter = unsafe {
         if PACKET_TOL.is_none() {
             error!("network_packet_tolal metrics have not been initialized");
             return;
@@ -48,7 +52,32 @@ pub fn set_gauge(val: i64, label_values: &HashMap<&str, &str>) {
 
         PACKET_TOL.as_ref().unwrap()
     };
-    gauge.with(label_values).set(val);
+    counter.with(label_values).inc_by(val);
+}
+
+pub async fn flush_file(path: impl AsRef<Path>) {
+    let enc = TextEncoder::new();
+    let mf = prometheus::gather();
+
+    let output_f = File::options()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)
+        .await
+        .unwrap();
+    let mut buf = BufWriter::with_capacity(1024 * 1024, output_f);
+
+    match enc.encode_to_string(&mf) {
+        Ok(output_line) => {
+            if let Err(e) = buf.write_all(output_line.as_bytes()).await {
+                error!("failed to write metrics data to file by err {}", e);
+                return;
+            }
+            buf.flush().await.unwrap();
+        }
+        Err(e) => error!("failed to encode prometheus metrics gather by err {}", e),
+    }
 }
 
 /// Sniff's metrics server has the following two functions:
