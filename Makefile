@@ -12,7 +12,7 @@ build:
 .PHONY: release
 release: clean fix check
 	@$(LOG_TARGET)
-	$(CARGO) build --release
+	$(CARGO) build --release --target=x86_64-unknown-linux-musl
 
 .PHONY: clean
 clean:
