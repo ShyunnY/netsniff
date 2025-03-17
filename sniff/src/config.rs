@@ -7,6 +7,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use log::info;
 use serde::Deserialize;
 use sniff_common::Flow;
 
@@ -22,6 +23,9 @@ pub struct Traffic {
 
     #[serde(rename(deserialize = "constLabels"))]
     pub const_labels: Option<Vec<String>>,
+
+    #[serde(rename(deserialize = "exportFile"), default = "default_export_file")]
+    pub export_file: String,
 
     #[serde(rename(deserialize = "rules"))]
     pub rules: Option<Vec<ConfigItem>>,
@@ -126,6 +130,14 @@ impl Traffic {
         }
         util::lookup_interface(lookup_iface)?;
 
+        if !Path::new(&self.export_file).exists() {
+            File::create(&self.export_file)?;
+            info!(
+                "config.exportFile file does not exist and has been created: {}",
+                &self.export_file
+            );
+        }
+
         Ok(())
     }
 
@@ -140,6 +152,11 @@ impl Traffic {
 // By default, the collector is flushed every 30 seconds.
 fn default_export_interval() -> String {
     String::from("30s")
+}
+
+// By default, the collector is export to metrics.txt
+fn default_export_file() -> String {
+    String::from("metrics.txt")
 }
 
 type OptionVec<T> = Option<Vec<T>>;

@@ -1,11 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
-    time::Duration,
-};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 
 use log::debug;
 use network_types::ip::IpProto;
@@ -24,45 +17,54 @@ type DataMap = HashMap<String, PacketCollector>;
 pub struct CollectorMap {
     export_interval: Duration,
     packet_data: DataMap,
+
+    export_file: PathBuf,
 }
 
 #[derive(Debug)]
+struct PtrU128(*mut u64);
+
+unsafe impl Send for PtrU128 {}
+unsafe impl Sync for PtrU128 {}
+
+#[derive(Debug)]
 struct PacketCollector {
-    data_total: AtomicU64,
+    data_total: PtrU128,
     label_values: Option<Arc<HashMap<String, String>>>,
 }
 
 impl PacketCollector {
     pub fn new(label_values: Option<Arc<HashMap<String, String>>>) -> Self {
         Self {
-            data_total: AtomicU64::new(0),
+            data_total: PtrU128(Box::into_raw(Box::new(0u64))),
             label_values,
         }
     }
 
     pub fn set(&self, data_tol: u16) {
-        // "Acquire" is used here to avoid reordering subsequent operations.
-        self.data_total
-            .fetch_update(Ordering::Relaxed, Ordering::Acquire, |x| {
-                Some(x.wrapping_add(data_tol as u64))
-            })
-            .unwrap();
+        unsafe {
+            let current = std::ptr::read(self.data_total.0);
+            std::ptr::write(self.data_total.0, current.wrapping_add(data_tol as u64));
+        }
     }
 
     pub fn clear(&self) {
-        self.data_total.store(0, Ordering::Relaxed);
+        unsafe {
+            std::ptr::write(self.data_total.0, 0);
+        }
     }
 
     pub fn get(&self) -> u64 {
-        self.data_total.load(Ordering::Relaxed)
+        unsafe { std::ptr::read(self.data_total.0) }
     }
 }
 
 impl CollectorMap {
-    pub fn new(internal: Duration) -> Self {
+    pub fn new(internal: Duration, export_file: PathBuf) -> Self {
         Self {
             export_interval: internal,
             packet_data: HashMap::new(),
+            export_file,
         }
     }
 
@@ -78,7 +80,6 @@ impl CollectorMap {
     }
 
     pub async fn flush(&self) {
-        println!("1111111111=>");
         let mut tick = tokio::time::interval(self.export_interval);
         loop {
             tick.tick().await;
@@ -95,7 +96,7 @@ impl CollectorMap {
                 metrics::set_counter(item.get(), &meta_kvs);
                 item.clear();
             });
-            metrics::flush_file("network_packet_metrics.txt").await;
+            metrics::flush_file(&self.export_file).await;
         }
     }
 }
@@ -104,11 +105,10 @@ pub fn identity_to_label_values(identity_line: &str) -> HashMap<&str, &str> {
     let values: Vec<&str> = identity_line.split("_").collect();
     let mut result = HashMap::with_capacity(metrics::PACKET_TOL_LV_CAP);
 
-    result.insert("rule_name", values[0]);
+    result.insert("rule", values[0]);
     result.insert("traffic", values[1]);
     result.insert("protocol", values[2]);
-    result.insert("network_iface", values[3]);
-    result.insert("port", values[4]);
+    result.insert("iface", values[3]);
 
     result
 }
@@ -123,14 +123,14 @@ pub fn netpkt_to_identity(
     net_pkt: &NetworkPacket,
 ) -> String {
     let (traffic, port) = match &net_pkt.flow {
-        Flow::Ingress => ("ingress", {
+        Flow::Ingress => ("in", {
             if enable_port {
                 net_pkt.pkt.dst.to_string()
             } else {
                 "undefine".to_string()
             }
         }),
-        Flow::Egress => ("egress", "unsupport".to_string()),
+        Flow::Egress => ("out", "unsupport".to_string()),
         Flow::All => panic!("should be no bidirectional traffic type"),
     };
 
@@ -172,7 +172,7 @@ pub fn filter_to_identity(filter: &Filter) -> Vec<String> {
                     identitys.push(format!(
                         "{}_{}_{}_{}_{}",
                         filter.rule_name(),
-                        "ingress",
+                        "in",
                         proto,
                         iface,
                         port
@@ -184,7 +184,7 @@ pub fn filter_to_identity(filter: &Filter) -> Vec<String> {
                 identitys.push(format!(
                     "{}_{}_{}_{}_{}",
                     filter.rule_name(),
-                    "ingress",
+                    "in",
                     proto,
                     iface,
                     "undefine"
@@ -198,7 +198,7 @@ pub fn filter_to_identity(filter: &Filter) -> Vec<String> {
             identitys.push(format!(
                 "{}_{}_{}_{}_{}",
                 filter.rule_name(),
-                "egress",
+                "out",
                 proto,
                 iface,
                 "unsupport",

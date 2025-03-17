@@ -1,4 +1,4 @@
-use std::{collections::HashSet, str::FromStr, sync::Arc};
+use std::{collections::HashSet, path::PathBuf, str::FromStr, sync::Arc};
 
 use clap::Parser;
 use ipnetwork::Ipv4Network;
@@ -47,7 +47,8 @@ async fn main() -> anyhow::Result<()> {
                         let mut flow = 0x3;
                         let mut proto: i32 = 0x3;
                         let mut empty_filter: Vec<Arc<Box<Filter>>> = Vec::new();
-                        let mut collector_map = CollectorMap::new(export_internal);
+                        let mut collector_map =
+                            CollectorMap::new(export_internal, PathBuf::from(config.export_file));
 
                         for item in rule {
                             proto &= item.protocol as i32;
